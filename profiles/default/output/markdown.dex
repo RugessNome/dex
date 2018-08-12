@@ -1,0 +1,127 @@
+
+import commands;
+import node;
+import nodes;
+
+
+void write_word(File & f, WordNode & n)
+{
+  f.write(n.word);
+}
+
+
+void write_glue(File & f, Glue & n)
+{
+  f.write(" ");
+}
+
+void write_group_node(File & f, GroupNode & n)
+{
+  for(int i(0); i < n.nodes.size(); ++i)
+  {
+    write_node(f, n.nodes.at(i));
+  }
+}
+
+void write_bold_node(File & f, BoldNode & n)
+{
+  f.write("**");
+  write_node(f, n.argument);
+  f.write("**");
+}
+
+void write_node(File & f, const Ref<Node> & n)
+{
+  if(n.is<WordNode>()) {
+    write_word(f, n.as<WordNode>());
+  } else if(n.is<Glue>()) {
+	write_glue(f, n.as<Glue>());
+  } else if(n.is<GroupNode>()) {
+	write_group_node(f, n.as<GroupNode>());
+  } else if(n.is<BoldNode>()) {
+	write_bold_node(f, n.as<BoldNode>());
+  }
+}
+
+void write_class(File & f, Class & c)
+{
+  f.write("# " + c.name + "\n\n");
+  
+  if(!c.brief.isNull())
+  {
+    f.write("**Brief:** ");
+    write_node(f, c.brief);
+  }
+  
+  f.write("\n\n");
+  
+  write_node(f, c.description);
+  
+  f.write("\n\n");
+  
+  for(int i(0); i < c.functions.size(); ++i)
+  {
+	write_mem_fun(f, c.functions.at(i));
+  }
+}
+
+void write_mem_fun(File & f, const Function & fun)
+{
+  f.write("## ");
+  write_node(f, fun.name);
+  f.write("\n\n");
+
+  if(!fun.brief.isNull())
+  {
+    f.write("**Brief:** ");
+    write_node(f, fun.brief);
+	f.write("\n\n");
+  }
+  
+  if(!fun.params.isEmpty())
+  {
+	f.write("**Parameters:** \n");
+	for(int i(0); i < fun.params.size(); ++i)
+	{
+      f.write("- ");
+	  write_node(f, fun.params.at(i));
+	  f.write("\n");
+	}
+	f.write("\n");
+  }
+  
+  if(!fun.returns.isNull())
+  {
+	f.write("**Returns:** ");
+	write_node(f, fun.returns);
+	f.write("\n");
+  }
+  
+  f.write("\n\n");
+}
+
+namespace output
+{
+
+void markdown(const String & outdir)
+{
+  print("Outputing Markdown into :" + outdir);
+
+  
+  for(int i(0); i < state.classes.size(); ++i)
+  {  
+    Class & cla = state.classes.at(i);
+    File f{outdir + "/" + cla.name + ".md"};
+    if(!f.open(File::WriteOnly))
+    {
+      print("Could not open output file");
+      continue;
+    }
+	  
+    write_class(f, cla);
+	f.close();
+  }
+  
+}
+
+} // namespace output

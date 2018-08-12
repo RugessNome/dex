@@ -1,0 +1,22 @@
+
+/*!
+ * \class Bar
+ * \brief The Bar class.
+ * This is an example file 
+ * with \b big text.
+ */
+
+ 
+  
+/*!
+ * \fun int foo();
+ * \brief A test function.
+ * \returns 5 
+ */
+ 
+/*!
+ * \fun int add(int a, int b);
+ * \param The first integer to add
+ * \param The second integer to add 
+ * \brief Adds two integers.
+ */

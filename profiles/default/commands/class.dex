@@ -1,0 +1,18 @@
+
+import node;
+import nodes.class;
+
+void class_(const String & name)
+{
+  auto ret = Ref<Class>::make(name);
+  state.stack.append(ret);
+  state.classes.append(ret);
+}
+
+void endclass()
+{
+  while(!state.stack.back().is<Class>())
+	state.stack.pop_back();
+
+  state.stack.pop_back();
+}

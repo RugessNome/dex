@@ -1,0 +1,25 @@
+
+import node;
+
+class BoldNode : SingleArgumentNode
+{
+public:
+  BoldNode(const Ref<Node> & arg)
+    : SingleArgumentNode(arg) { }
+  ~BoldNode() = default;
+};
+
+Ref<Node> b(const Ref<Node> & n, Span::Word)
+{
+  return Ref<BoldNode>::make(n);
+}
+
+/*
+Ref<Node> b(const String & str)
+{
+  print("Wanna make that bold ? huh");
+  print(str);
+  auto text = Ref<WordNode>::make(str);
+  return Ref<BoldNode>::make(text);
+}
+*/

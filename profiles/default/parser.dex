@@ -1,0 +1,34 @@
+
+import node;
+
+namespace parser
+{
+
+void beginFile(const String & path)
+{
+  print("Processing file :" + path);
+}
+
+
+void endFile(const String & path)
+{
+  state.stack.clear();
+}
+
+void beginBlock()
+{
+  state.beginBlock();
+}
+
+void endBlock()
+{
+  state.endBlock();
+}
+
+
+void dispatch(const Ref<Node> & node)
+{
+  state.dispatch(node);
+}
+
+} // namespace parser

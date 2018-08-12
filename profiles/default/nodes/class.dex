@@ -1,0 +1,23 @@
+
+import node;
+import nodes.function;
+
+class Class : Node
+{
+public:
+  String name;
+  Ref<Node> brief;
+  List<Ref<Function>> functions;
+  Ref<GroupNode> description;
+public:
+  Class(const String & n)
+    : name(n)
+  {
+    description = Ref<GroupNode>::make();
+  }
+
+  ~Class() 
+  {
+    print(66);
+  }
+};

@@ -1,0 +1,48 @@
+
+import node;
+import nodes.class;
+import nodes.function;
+
+void fun(const Ref<Node> & name, Span::Line)
+{
+  if(state.stack.isEmpty())
+  {
+    print("fun not allowed in this context : empty stack");
+  }
+
+  if(state.stack.back().is<Class>())
+  {
+    auto func = Ref<Function>::make(name);
+	Class & c = state.stack.back().as<Class>();
+	c.functions.push_back(func);
+	state.stack.push_back(func);
+  }
+  else
+  {
+    print("fun not allowed in this context : not a class");
+  }
+}
+
+
+void param(const Ref<Node> & description, Span::Line)
+{
+  if(state.stack.isEmpty() || !state.stack.back().is<Function>())
+  {
+    print("param not allowed in this context");
+  }
+  
+  Function & func = state.currentFunction();
+  func.params.push_back(description);
+}
+
+
+void returns(const Ref<Node> & description, Span::Line)
+{
+  if(state.stack.isEmpty() || !state.stack.back().is<Function>())
+  {
+    print("returns not allowed in this context");
+  }
+  
+  Function & func = state.currentFunction();
+  func.returns = description;
+}

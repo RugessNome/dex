@@ -1,0 +1,52 @@
+
+import node;
+import nodes;
+
+class State
+{
+public:
+  State() = default;
+  ~State() = default;
+
+  List<Ref<Class>> classes;
+  
+  List<Ref<Node>> stack;
+  
+  Ref<Node> current() const
+  {
+    return stack.back();
+  }
+  
+  Function & currentFunction()
+  {
+    return stack.back().as<Function>();
+  }
+  
+  void dispatch(const Ref<Node> & node)
+  {
+	if(stack.isEmpty())
+	{
+	  print("Error while dispatching node, entity stack is empty");
+	  return;
+	}
+  
+    if(stack.back().is<Class>())
+    {
+      Class & c = stack.back().as<Class>();
+	  c.description.get().push_back(node);
+    }
+  }
+  
+  void beginBlock()
+  {
+	  
+  }
+  
+  void endBlock()
+  {
+    while(!stack.empty() && (stack.back().is<Function>()))
+	{
+      stack.pop_back();
+	}
+  }
+};

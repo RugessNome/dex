@@ -1,0 +1,20 @@
+
+import node;
+
+class Function : Node
+{
+public:
+  Ref<Node> name;
+  Ref<Node> brief;
+  Ref<GroupNode> description;
+  Ref<Node> returns;
+  List<Ref<Node>> params;
+public:
+  Function(const Ref<Node> & n)
+    : name(n)
+  {
+    description = Ref<GroupNode>::make();
+  }
+
+  ~Function() = default;
+};

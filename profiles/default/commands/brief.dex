@@ -1,0 +1,27 @@
+
+import node;
+import nodes;
+
+void brief(const Ref<Node> & value, Span::Line)
+{
+  if(state.stack.isEmpty())
+  {
+    print("brief not allowed in this context : stack is empty");
+	return;
+  }
+
+  if(state.stack.back().is<Class>())
+  {
+    Class & c = state.stack.back().as<Class>();
+	c.brief = value;
+  }
+  else if(state.stack.back().is<Function>())
+  {
+    Function & f = state.stack.back().as<Function>();
+	f.brief = value;
+  }
+  else
+  {
+    print("brief not allowed in this context");
+  }
+}
