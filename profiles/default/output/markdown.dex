@@ -30,6 +30,14 @@ void write_bold_node(File & f, BoldNode & n)
   f.write("**");
 }
 
+void write_type_node(File & f, Type & n)
+{
+  f.write("`");
+  write_node(f, n.argument);
+  f.write("`");
+}
+
+
 void write_node(File & f, const Ref<Node> & n)
 {
   if(n.is<WordNode>()) {
@@ -40,6 +48,8 @@ void write_node(File & f, const Ref<Node> & n)
 	write_group_node(f, n.as<GroupNode>());
   } else if(n.is<BoldNode>()) {
 	write_bold_node(f, n.as<BoldNode>());
+  } else if(n.is<Type>()) {
+	write_type_node(f, n.as<Type>());
   }
 }
 

@@ -1,0 +1,13 @@
+
+import node;
+
+class Type : SingleArgumentNode
+{
+public:
+  Type(const Ref<Node> & n)
+    : SingleArgumentNode(n)
+  {
+  }
+
+  ~Type() = default;
+};

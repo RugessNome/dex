@@ -2,6 +2,7 @@
 import node;
 import nodes.class;
 import nodes.function;
+import nodes.type;
 
 void fun(const Ref<Node> & name, Span::Line)
 {
@@ -45,4 +46,10 @@ void returns(const Ref<Node> & description, Span::Line)
   
   Function & func = state.currentFunction();
   func.returns = description;
+}
+
+
+Ref<Node> t(const Ref<Node> & t, Span::Word)
+{
+  return Ref<Type>::make(t);
 }

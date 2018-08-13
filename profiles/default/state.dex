@@ -1,6 +1,7 @@
 
 import node;
-import nodes;
+import nodes.class;
+import nodes.function;
 
 class State
 {
