@@ -25,7 +25,7 @@ const QString Lexer::Space = " ";
 Lexer::Lexer()
 {
   mBlockDelimiter = QPair<QString, QString>("/*!", "*/");
-  mPunctuators << '{' << '[' << '}' << ']' << '=' << ',';
+  mPunctuators << '{' << '[' << '}' << ']' << '=' << ',' << '.' << ';' << '\'' << '"';
   mIgnoredSequences.append("*");
 }
 
