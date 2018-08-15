@@ -20,7 +20,6 @@ namespace dex
 {
 
 const QChar Lexer::AntiSlash = '\\';
-const QString Lexer::Space = " ";
 
 Lexer::Lexer()
 {
@@ -35,28 +34,40 @@ void Lexer::start(const QString & doc)
   mPos.line = 0;
   mPos.column = 0;
   mPos.offset = 0;
-  mLineBeginning = true;
   mLastProducedTokenLine = 0;
 }
 
-QStringRef Lexer::read()
+Token Lexer::read()
 {
-  const int pos = mPos.offset;
-  const int line = mPos.line;
+  const Position startpos = mPos;
 
-  consumeDiscardables();
-  if (mPos.offset != pos)
-    return QStringRef{ &Space, 0, 1 };
-  
+  if(readSpaces())
+    return Token{ Token::Space, substringFrom(startpos.offset) };
+
   if (peekChar() == AntiSlash)
+  {
     readChar();
+    return produce(Token::EscapeCharacter, startpos.offset);
+  }
+  else if (peekChar() == '\n')
+  {
+    readChar();
+    return Token{ Token::EndOfLine, substringFrom(startpos.offset) };
+  }
+  else if (peekChar() == '{')
+  {
+    readChar();
+    return produce(Token::BeginGroup, startpos.offset);;
+  }
+  else if (peekChar() == '}')
+  {
+    readChar();
+    return produce(Token::EndGroup, startpos.offset);;
+  }
   else if (mPunctuators.contains(peekChar()))
   {
     readChar();
-    auto ret = substring(pos, mPos.offset - pos);
-    mLastProducedTokenLine = line;
-    //consumeDiscardables();
-    return ret;
+    return produce(Token::Other, startpos.offset);
   }
 
   while (!atBlockEnd() && !isDiscardable(peekChar()) && !isTerminator(peekChar()))
@@ -64,10 +75,7 @@ QStringRef Lexer::read()
     readChar();
   }
 
-  auto ret = substring(pos, mPos.offset - pos);
-  mLastProducedTokenLine = line;
-  //consumeDiscardables();
-  return ret;
+  return produce(Token::Word, startpos.offset);
 }
 
 bool Lexer::atBlockEnd() const
@@ -80,7 +88,19 @@ bool Lexer::seekBlock()
   while (mPos.offset < mDocument.length() - mBlockDelimiter.first.length())
   {
     if (!atBlockBegin())
-      readChar();
+    {
+      QChar c = mDocument[mPos.offset];
+      mPos.offset += 1;
+      if (c == '\n')
+      {
+        mPos.line += 1;
+        mPos.column = 0;
+      }
+      else
+      {
+        mPos.column += 1;
+      }
+    }
     else
       break;
   }
@@ -88,7 +108,7 @@ bool Lexer::seekBlock()
   if (!atBlockBegin())
     return false;
   readChar(mBlockDelimiter.first.length());
-  consumeDiscardables();
+  consumeDiscardables(); /// TODO: remove once we handle correctly Space and EndOfLine nodes
   return true;
 }
 
@@ -107,14 +127,12 @@ QChar Lexer::readChar()
   mPos.offset += 1;
   if (result == '\n')
   {
-    mLineBeginning = true;
     mPos.line += 1;
     mPos.column = 0;
+    beginLine();
   }
   else
   {
-    if(!isDiscardable(result))
-      mLineBeginning = false;
     mPos.column += 1;
   }
   return result;
@@ -151,9 +169,6 @@ bool Lexer::readDiscardable()
 
 bool Lexer::readIgnoredSequence()
 {
-  if (!mLineBeginning)
-    return false;
-
   for (const auto & seq : mIgnoredSequences)
   {
     if (substring(seq.length()) == seq)
@@ -171,6 +186,30 @@ void Lexer::consumeDiscardables()
   while (!atBlockEnd() && (readDiscardable() || readIgnoredSequence()));
 }
 
+bool Lexer::readSpaces()
+{
+  const int offset = mPos.offset;
+
+  while (!atBlockEnd() && peekChar().isSpace())
+    readChar();
+
+  return mPos.offset != offset;
+}
+
+void Lexer::beginLine()
+{
+  const Position pos = mPos;
+
+  while (!atBlockEnd() && peekChar().isSpace())
+    readChar();
+
+  if (atBlockEnd())
+    return;
+
+  if (!readIgnoredSequence())
+    mPos = pos;
+}
+
 QStringRef Lexer::substring(int count) const
 {
   return QStringRef{ &mDocument, mPos.offset, std::min(count, mDocument.length() - mPos.offset) };
@@ -181,6 +220,16 @@ QStringRef Lexer::substring(int pos, int count) const
   return QStringRef{ &mDocument, pos, std::min(count, mDocument.length() - pos) };
 }
 
+QStringRef Lexer::substringFrom(int offset) const
+{
+  return QStringRef{ &mDocument, offset, std::min(mPos.offset - offset, mDocument.length() - offset) };
+}
+
+Token Lexer::produce(Token::Kind k, int offset)
+{
+  mLastProducedTokenLine = mPos.line;
+  return Token{ k, substringFrom(offset) };
+}
 
 Parser::Parser(const QSharedPointer<Environment> & root)
 {
@@ -255,28 +304,28 @@ NodeRef Parser::read()
 {
   auto token = mLexer.read();
 
+  if (token.kind == Token::EscapeCharacter)
+    return readCommand(mLexer.read());
+
   return createNode(token);
 }
 
 NodeRef Parser::readArgument()
 {
   auto token = mLexer.read();
-  if (token == " ")
+  if (token.kind == Token::Space)
     token = mLexer.read();
 
   return createNode(token);
 }
 
-NodeRef Parser::createNode(const QStringRef & token)
+NodeRef Parser::createNode(const Token & tok)
 {
-  if (token[0] == Lexer::AntiSlash)
-  {
-    return readCommand(token.toString());
-  }
-  else if (token == "{")
+  if (tok.kind == Token::BeginGroup)
   {
     auto result = NodeRef::createGroupNode(engine());
     auto element = read();
+    /// TODO: use lexer.peekChar() instead to test for '}'
     while (!element.isWord() && element.toString() != "}")
     {
       if (!element.isNull())
@@ -284,13 +333,13 @@ NodeRef Parser::createNode(const QStringRef & token)
     }
     return result;
   }
-  else if (token == " ")
+  else if (tok.kind == Token::Space || tok.kind == Token::EndOfLine)
   {
     return NodeRef::createGlueNode(engine());
   }
   else
   {
-    return NodeRef::createWordNode(engine(), token.toString());
+    return NodeRef::createWordNode(engine(), tok.text.toString());
   }
 }
 
@@ -318,10 +367,10 @@ BracketsArguments Parser::readBracketsArguments()
 
   QPair<QString, QString> argument;
   bool equal_sign_read = false;
-  QStringRef tok = mLexer.read();
-  while (tok != "]")
+  Token tok = mLexer.read();
+  while (tok.text != "]")
   {
-    if (tok == ",")
+    if (tok.text == ",")
     {
       if (equal_sign_read)
       {
@@ -333,16 +382,16 @@ BracketsArguments Parser::readBracketsArguments()
       }
       equal_sign_read = false;
     }
-    else if (tok == "=")
+    else if (tok.text == "=")
     {
       equal_sign_read = true;
     }
     else
     {
       if (equal_sign_read)
-        argument.second = tok.toString();
+        argument.second = tok.text.toString();
       else
-        argument.first = tok.toString();
+        argument.first = tok.text.toString();
     }
 
     tok = mLexer.read();
@@ -351,12 +400,12 @@ BracketsArguments Parser::readBracketsArguments()
   return result;
 }
 
-NodeRef Parser::readCommand(const QString & token)
+NodeRef Parser::readCommand(const Token & token)
 {
-  auto command = findCommand(token.mid(1));
+  auto command = findCommand(token.text.toString());
   if (command == nullptr)
   {
-    qDebug() << "No such command " << token;
+    qDebug() << "No such command " << token.text.toString();
     throw std::runtime_error{ "No such command" };
   }
 

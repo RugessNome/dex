@@ -19,6 +19,22 @@ namespace dex
 
 class NodeRef;
 
+struct Token
+{
+  enum Kind {
+    EscapeCharacter = 0,
+    BeginGroup,
+    EndGroup,
+    EndOfLine,
+    Space,
+    Word,
+    Other,
+  };
+
+  Kind kind;
+  QStringRef text;
+};
+
 class Lexer
 {
 public:
@@ -27,9 +43,8 @@ public:
   void start(const QString & doc);
 
   static const QChar AntiSlash;
-  static const QString Space;
 
-  QStringRef read();
+  Token read();
   inline QChar nextChar() const { return peekChar(); }
   bool atBlockEnd() const;
 
@@ -48,8 +63,12 @@ protected:
   bool readDiscardable();
   bool readIgnoredSequence();
   void consumeDiscardables();
+  bool readSpaces();
+  void beginLine();
   QStringRef substring(int count) const;
   QStringRef substring(int pos, int count) const;
+  QStringRef substringFrom(int offset) const;
+  Token produce(Token::Kind k, int offset);
 
 public:
   struct Position {
@@ -62,7 +81,6 @@ private:
   Position mPos;
   QString mDocument;
   QPair<QString, QString> mBlockDelimiter;
-  bool mLineBeginning;
   QStringList mIgnoredSequences;
   QSet<QChar> mPunctuators;
   int mLastProducedTokenLine;
@@ -85,10 +103,10 @@ protected:
   void start(const QString & text);
   NodeRef read();
   NodeRef readArgument();
-  NodeRef createNode(const QStringRef & str);
+  NodeRef createNode(const Token & tok);
   BracketsArguments readBracketsArguments();
   QSharedPointer<Command> findCommand(const QString & name) const;
-  NodeRef readCommand(const QString & command);
+  NodeRef readCommand(const Token & command);
 
   void processFile(const QString & path);
   void beginFile(const QString & path);
