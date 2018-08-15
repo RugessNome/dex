@@ -35,7 +35,7 @@ public:
 
   bool seekBlock();
 
-  inline int currentLine() const { return mLine; }
+  inline int currentLine() const { return mPos.line; }
   inline int lastProductiveLine() const { return mLastProducedTokenLine; }
 
 protected:
@@ -51,10 +51,15 @@ protected:
   QStringRef substring(int count) const;
   QStringRef substring(int pos, int count) const;
 
+public:
+  struct Position {
+    int line;
+    int column;
+    int offset;
+  };
+
 private:
-  int mLine;
-  int mColumn;
-  int mPos;
+  Position mPos;
   QString mDocument;
   QPair<QString, QString> mBlockDelimiter;
   bool mLineBeginning;

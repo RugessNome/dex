@@ -32,20 +32,20 @@ Lexer::Lexer()
 void Lexer::start(const QString & doc)
 {
   mDocument = doc;
-  mLine = 0;
-  mColumn = 0;
-  mPos = 0;
+  mPos.line = 0;
+  mPos.column = 0;
+  mPos.offset = 0;
   mLineBeginning = true;
   mLastProducedTokenLine = 0;
 }
 
 QStringRef Lexer::read()
 {
-  const int pos = mPos;
-  const int line = mLine;
+  const int pos = mPos.offset;
+  const int line = mPos.line;
 
   consumeDiscardables();
-  if (mPos != pos)
+  if (mPos.offset != pos)
     return QStringRef{ &Space, 0, 1 };
   
   if (peekChar() == AntiSlash)
@@ -53,7 +53,7 @@ QStringRef Lexer::read()
   else if (mPunctuators.contains(peekChar()))
   {
     readChar();
-    auto ret = substring(pos, mPos - pos);
+    auto ret = substring(pos, mPos.offset - pos);
     mLastProducedTokenLine = line;
     //consumeDiscardables();
     return ret;
@@ -64,7 +64,7 @@ QStringRef Lexer::read()
     readChar();
   }
 
-  auto ret = substring(pos, mPos - pos);
+  auto ret = substring(pos, mPos.offset - pos);
   mLastProducedTokenLine = line;
   //consumeDiscardables();
   return ret;
@@ -72,12 +72,12 @@ QStringRef Lexer::read()
 
 bool Lexer::atBlockEnd() const
 {
-  return QStringRef{ &mDocument, mPos, mBlockDelimiter.second.length() } == mBlockDelimiter.second;
+  return QStringRef{ &mDocument, mPos.offset, mBlockDelimiter.second.length() } == mBlockDelimiter.second;
 }
 
 bool Lexer::seekBlock()
 {
-  while (mPos < mDocument.length() - mBlockDelimiter.first.length())
+  while (mPos.offset < mDocument.length() - mBlockDelimiter.first.length())
   {
     if (!atBlockBegin())
       readChar();
@@ -103,31 +103,31 @@ void Lexer::readChar(int count)
 
 QChar Lexer::readChar()
 {
-  QChar result = mDocument[mPos];
-  mPos += 1;
+  QChar result = mDocument[mPos.offset];
+  mPos.offset += 1;
   if (result == '\n')
   {
     mLineBeginning = true;
-    mLine += 1;
-    mColumn = 0;
+    mPos.line += 1;
+    mPos.column = 0;
   }
   else
   {
     if(!isDiscardable(result))
       mLineBeginning = false;
-    mColumn += 1;
+    mPos.column += 1;
   }
   return result;
 }
 
 QChar Lexer::peekChar() const
 {
-  return mDocument[mPos];
+  return mDocument[mPos.offset];
 }
 
 bool Lexer::atBlockBegin() const
 {
-  return QStringRef{ &mDocument, mPos, mBlockDelimiter.first.length() } == mBlockDelimiter.first;
+  return QStringRef{ &mDocument, mPos.offset, mBlockDelimiter.first.length() } == mBlockDelimiter.first;
 }
 
 bool Lexer::isTerminator(const QChar & c) const
@@ -173,7 +173,7 @@ void Lexer::consumeDiscardables()
 
 QStringRef Lexer::substring(int count) const
 {
-  return QStringRef{ &mDocument, mPos, std::min(count, mDocument.length() - mPos) };
+  return QStringRef{ &mDocument, mPos.offset, std::min(count, mDocument.length() - mPos.offset) };
 }
 
 QStringRef Lexer::substring(int pos, int count) const
