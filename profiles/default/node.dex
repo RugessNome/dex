@@ -22,11 +22,20 @@ public:
   String word;
 };
 
-class Glue : Node
+class Space : Node
 {
 public:
-  Glue() = default;
-  ~Glue() = default;
+  Space(const String & value)
+    : text(value) { }
+
+  ~Space() = default;
+
+  const String & value() const
+  {
+    return text;
+  }
+
+  String text;
 };
 
 class GroupNode : Node

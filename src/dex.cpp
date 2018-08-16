@@ -7,9 +7,8 @@
 #include "dex/list.h"
 #include "dex/ref.h"
 
-#include "dex/node.h"
-#include "dex/gluenode.h"
 #include "dex/groupnode.h"
+#include "dex/spacenode.h"
 #include "dex/wordnode.h"
 
 #include "dex/bracketsarguments.h"
@@ -222,10 +221,21 @@ static void register_word_node_type(Application &app, const script::Class &wordn
   throw std::runtime_error{ "Could not find WordNode::value() member function" };
 }
 
-static void register_glue_node_type(Application &app, const script::Class &gluenode)
+static void register_space_node_type(Application &app, const script::Class &spacenode)
 {
-  auto& ti = dex::GlueNode::type_info();
-  ti.type = gluenode.id();
+  auto& ti = dex::SpaceNode::type_info();
+  ti.type = spacenode.id();
+
+  for (const auto & f : spacenode.memberFunctions())
+  {
+    if (f.name() == "value" && f.returnType().baseType() == script::Type::String && f.prototype().size() == 1)
+    {
+      ti.get_value = f;
+      return;
+    }
+  }
+
+  throw std::runtime_error{ "Could not find Space::value() member function" };
 }
 
 static void register_groupnode_type(Application & app, const script::Class &groupnode)
@@ -268,7 +278,7 @@ void Application::load_nodes()
   typedef void(*ClassActionCallback)(Application&, const script::Class&);
   QMap<std::string, ClassActionCallback> actions;
   actions["Node"] = register_node_type;
-  actions["Glue"] = register_glue_node_type;
+  actions["Space"] = register_space_node_type;
   actions["GroupNode"] = register_groupnode_type;
   actions["WordNode"] = register_word_node_type;
 

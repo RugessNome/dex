@@ -335,7 +335,7 @@ NodeRef Parser::createNode(const Token & tok)
   }
   else if (tok.kind == Token::Space || tok.kind == Token::EndOfLine)
   {
-    return NodeRef::createGlueNode(engine());
+    return NodeRef::createSpaceNode(engine(), tok.text.toString());
   }
   else
   {
@@ -445,7 +445,7 @@ NodeRef Parser::readCommand(const Token & token)
           group.push_back(arg);
         }
 
-        if (!group.isEmpty() && group.back().isGlue())
+        if (!group.isEmpty() && group.back().isSpace())
         {
           /// TODO : remove last element from group
         }

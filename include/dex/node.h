@@ -13,9 +13,9 @@
 namespace dex
 {
 
-class WordNode;
-class GlueNode;
 class GroupNode;
+class SpaceNode;
+class WordNode;
 
 class Node
 {
@@ -28,7 +28,7 @@ public:
 
   inline bool isNull() const { return mValue.isNull(); }
   
-  bool isGlueNode() const;
+  bool isSpaceNode() const;
   bool isGroupNode() const;
   bool isWordNode() const;
 
@@ -37,7 +37,7 @@ public:
   };
 
   WordNode asWordNode() const;
-  GlueNode asGlueNode() const;
+  SpaceNode asSpaceNode() const;
   GroupNode asGroupNode() const;
 
   static TypeInfo static_type_info;
@@ -72,7 +72,7 @@ public:
   int toInt() const;
   QString toString() const;
 
-  inline bool isGlue() const { return getNode().isGlueNode(); }
+  inline bool isSpace() const { return getNode().isSpaceNode(); }
 
   inline bool isGroup() const { return getNode().isGroupNode(); }
   int size() const;
@@ -82,7 +82,7 @@ public:
   NodeRef back();
 
   static NodeRef createWordNode(script::Engine *e, const QString & str);
-  static NodeRef createGlueNode(script::Engine *e);
+  static NodeRef createSpaceNode(script::Engine *e, const QString & str);
   static NodeRef createGroupNode(script::Engine *e);
 
   inline const script::Value & impl() const { return mValue; }

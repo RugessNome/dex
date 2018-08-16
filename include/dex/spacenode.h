@@ -2,25 +2,28 @@
 // This file is part of the Dex project
 // For conditions of distribution and use, see copyright notice in LICENSE
 
-#ifndef DEX_GLUE_NODE_H
-#define DEX_GLUE_NODE_H
+#ifndef DEX_SPACE_NODE_H
+#define DEX_SPACE_NODE_H
 
 #include "dex/node.h"
 
 namespace dex
 {
 
-class GlueNode : public Node
+class SpaceNode : public Node
 {
 public:
-  GlueNode() = default;
-  GlueNode(const GlueNode & ) = default;
-  ~GlueNode() = default;
+  SpaceNode() = default;
+  SpaceNode(const SpaceNode &) = default;
+  ~SpaceNode() = default;
 
-  explicit GlueNode(const script::Value & val);
+  SpaceNode(const script::Value & val);
+
+  QString value() const;
 
   struct TypeInfo {
     script::Type type;
+    script::Function get_value;
   };
 
   static TypeInfo static_type_info;
@@ -29,4 +32,4 @@ public:
 
 } // namespace dex
 
-#endif // DEX_GLUE_NODE_H
+#endif // DEX_SPACE_NODE_H

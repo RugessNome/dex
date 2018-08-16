@@ -4,8 +4,8 @@
 
 #include "dex/node.h"
 
-#include "dex/gluenode.h"
 #include "dex/groupnode.h"
+#include "dex/spacenode.h"
 #include "dex/wordnode.h"
 #include "dex/utils.h"
 
@@ -27,11 +27,11 @@ Node::Node(const script::Value & val)
 
 }
 
-bool Node::isGlueNode() const
+bool Node::isSpaceNode() const
 {
   if (mValue.isNull())
     return false;
-  return mValue.type().baseType() == GlueNode::type_info().type;
+  return mValue.type().baseType() == SpaceNode::type_info().type;
 }
 
 bool Node::isGroupNode() const
@@ -55,11 +55,11 @@ WordNode Node::asWordNode() const
   return WordNode{ mValue };
 }
 
-GlueNode Node::asGlueNode() const
+SpaceNode Node::asSpaceNode() const
 {
-  if (!isGlueNode())
-    return GlueNode{};
-  return GlueNode{ mValue };
+  if (!isSpaceNode())
+    return SpaceNode{};
+  return SpaceNode{ mValue };
 }
 
 GroupNode Node::asGroupNode() const
@@ -170,9 +170,11 @@ NodeRef NodeRef::createWordNode(script::Engine *e, const QString & str)
   return result;
 }
 
-NodeRef NodeRef::createGlueNode(script::Engine *e)
+NodeRef NodeRef::createSpaceNode(script::Engine *e, const QString & str)
 {
-  script::Value val = e->construct(GlueNode::type_info().type, { });
+  script::Value arg = e->newString(str);
+  script::Value val = e->construct(SpaceNode::type_info().type, { arg });
+  e->destroy(arg);
   script::Value result = e->construct(type_info().type, {});
   result.impl()->set_ref(val.impl());
   return result;
