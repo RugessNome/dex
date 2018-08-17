@@ -449,7 +449,7 @@ static QList<QSharedPointer<dex::Output>> load_outputs(QList<script::Script> & s
 {
   QList<QSharedPointer<dex::Output>> result;
 
-  for (const auto & s : scripts)
+  for (auto s : scripts)
   {
     auto output_ns = s.rootNamespace().findNamespace("output");
     if (output_ns.isNull())
@@ -461,6 +461,10 @@ static QList<QSharedPointer<dex::Output>> load_outputs(QList<script::Script> & s
       if (output != nullptr)
         result.append(output);
     }
+    
+    /// TODO: Should we rather run the scripts just before calling the output function ?
+    // And therefore only call run() for the output script that is actually used.
+    s.run();
   }
 
   return result;
