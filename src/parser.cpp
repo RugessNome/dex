@@ -265,8 +265,8 @@ QSharedPointer<Environment> Parser::getEnvironment(const QString & name) const
   {
     auto env = mEnvironments.at(i);
     auto result = env->getEnvironment(name);
-    if (result == nullptr)
-      continue;
+    if (result != nullptr)
+      return result;
   }
 
   return nullptr;

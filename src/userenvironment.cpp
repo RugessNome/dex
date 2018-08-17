@@ -77,7 +77,7 @@ QString UserEnvironment::name() const
 void UserEnvironment::enter(const BracketsArguments & brackets)
 {
   script::Engine *e = mEnterFunction.engine();
-  e->call(mLeaveFunction, {brackets.expose(e)});
+  e->call(mEnterFunction, {brackets.expose(e)});
 }
 
 void UserEnvironment::leave()

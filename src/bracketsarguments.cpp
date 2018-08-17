@@ -48,7 +48,7 @@ static script::Value ctor(script::FunctionCall *c)
 
 static script::Value copy_ctor(script::FunctionCall *c)
 {
-  new (c->thisObject().memory()) BracketsArguments{ bracket_arguments_cast(c->arg(1)) };
+  new (c->thisObject().memory()) BracketsArguments{ bracket_arguments_cast(c->arg(0)) };
   return c->thisObject();
 }
 
