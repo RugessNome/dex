@@ -311,13 +311,15 @@ NodeRef Parser::createNode(const Token & tok)
   if (tok.kind == Token::BeginGroup)
   {
     auto result = NodeRef::createGroupNode(engine());
-    auto element = read();
-    /// TODO: use lexer.peekChar() instead to test for '}'
-    while (!element.isWord() && element.toString() != "}")
+    while (mLexer.nextChar() != '}')
     {
+      auto element = read();
       if (!element.isNull())
         result.push_back(element);
     }
+   
+    mLexer.read(); /// TODO: assert its a Token::EndGroup
+
     return result;
   }
   else if (tok.kind == Token::Space)

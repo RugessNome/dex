@@ -6,6 +6,8 @@
  * with \b big text.
  *
  * This class is related to \t Foo.
+ * 
+ * This {is a group}.
  */
 
  
