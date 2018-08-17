@@ -70,6 +70,8 @@ Token Lexer::read()
     return produce(Token::Other, startpos.offset);
   }
 
+  /// TODO: remove the use of isDiscardable and isTerminator here by 
+  // using Token::Kind and stopping when char is not Token::Word
   while (!atBlockEnd() && !isDiscardable(peekChar()) && !isTerminator(peekChar()))
   {
     readChar();
@@ -108,7 +110,6 @@ bool Lexer::seekBlock()
   if (!atBlockBegin())
     return false;
   readChar(mBlockDelimiter.first.length());
-  consumeDiscardables(); /// TODO: remove once we handle correctly Space and EndOfLine nodes
   return true;
 }
 
@@ -158,15 +159,6 @@ bool Lexer::isDiscardable(const QChar & c) const
   return c.isSpace();
 }
 
-bool Lexer::readDiscardable()
-{
-  if (!isDiscardable(peekChar()))
-    return false;
-
-  readChar();
-  return true;
-}
-
 bool Lexer::readIgnoredSequence()
 {
   for (const auto & seq : mIgnoredSequences)
@@ -179,11 +171,6 @@ bool Lexer::readIgnoredSequence()
   }
 
   return false;
-}
-
-void Lexer::consumeDiscardables()
-{
-  while (!atBlockEnd() && (readDiscardable() || readIgnoredSequence()));
 }
 
 bool Lexer::readSpaces()

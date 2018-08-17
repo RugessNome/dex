@@ -27,6 +27,9 @@ public:
   {
 	if(stack.isEmpty())
 	{
+	  if(node.is<Space>() || node.is<EndOfLine>())
+	    return;
+	
 	  print("Error while dispatching node, entity stack is empty");
 	  return;
 	}

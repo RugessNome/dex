@@ -60,9 +60,7 @@ protected:
   bool atBlockBegin() const;
   bool isTerminator(const QChar & c) const;
   bool isDiscardable(const QChar & c) const;
-  bool readDiscardable();
   bool readIgnoredSequence();
-  void consumeDiscardables();
   bool readSpaces();
   void beginLine();
   QStringRef substring(int count) const;
