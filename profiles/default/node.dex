@@ -22,6 +22,13 @@ public:
   String word;
 };
 
+class EndOfLine : Node
+{
+public:
+  EndOfLine() = default;
+  ~EndOfLine() = default;
+};
+
 class Space : Node
 {
 public:

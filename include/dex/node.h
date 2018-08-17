@@ -28,6 +28,7 @@ public:
 
   inline bool isNull() const { return mValue.isNull(); }
   
+  bool isEndOfLine() const;
   bool isSpaceNode() const;
   bool isGroupNode() const;
   bool isWordNode() const;
@@ -73,6 +74,7 @@ public:
   QString toString() const;
 
   inline bool isSpace() const { return getNode().isSpaceNode(); }
+  inline bool isEndOfLine() const { return getNode().isEndOfLine(); }
 
   inline bool isGroup() const { return getNode().isGroupNode(); }
   int size() const;
@@ -82,6 +84,7 @@ public:
   NodeRef back();
 
   static NodeRef createWordNode(script::Engine *e, const QString & str);
+  static NodeRef createEndOfLine(script::Engine *e);
   static NodeRef createSpaceNode(script::Engine *e, const QString & str);
   static NodeRef createGroupNode(script::Engine *e);
 

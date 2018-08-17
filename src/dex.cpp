@@ -7,6 +7,7 @@
 #include "dex/list.h"
 #include "dex/ref.h"
 
+#include "dex/endoflinenode.h"
 #include "dex/groupnode.h"
 #include "dex/spacenode.h"
 #include "dex/wordnode.h"
@@ -238,6 +239,13 @@ static void register_space_node_type(Application &app, const script::Class &spac
   throw std::runtime_error{ "Could not find Space::value() member function" };
 }
 
+static void register_eol_node_type(Application &app, const script::Class &eolnode)
+{
+  auto& ti = dex::EndOfLineNode::type_info();
+  ti.type = eolnode.id();
+}
+
+
 static void register_groupnode_type(Application & app, const script::Class &groupnode)
 {
   if (!groupnode.inherits(app.scriptEngine()->getClass(dex::Node::type_info().type)))
@@ -278,6 +286,7 @@ void Application::load_nodes()
   typedef void(*ClassActionCallback)(Application&, const script::Class&);
   QMap<std::string, ClassActionCallback> actions;
   actions["Node"] = register_node_type;
+  actions["EndOfLine"] = register_eol_node_type;
   actions["Space"] = register_space_node_type;
   actions["GroupNode"] = register_groupnode_type;
   actions["WordNode"] = register_word_node_type;

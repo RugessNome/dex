@@ -190,7 +190,7 @@ bool Lexer::readSpaces()
 {
   const int offset = mPos.offset;
 
-  while (!atBlockEnd() && peekChar().isSpace())
+  while (!atBlockEnd() && peekChar().isSpace() && peekChar() != '\n')
     readChar();
 
   return mPos.offset != offset;
@@ -313,7 +313,7 @@ NodeRef Parser::read()
 NodeRef Parser::readArgument()
 {
   auto token = mLexer.read();
-  if (token.kind == Token::Space)
+  if (token.kind == Token::Space) /// TODO: should we consider EOL too ?
     token = mLexer.read();
 
   return createNode(token);
@@ -333,9 +333,13 @@ NodeRef Parser::createNode(const Token & tok)
     }
     return result;
   }
-  else if (tok.kind == Token::Space || tok.kind == Token::EndOfLine)
+  else if (tok.kind == Token::Space)
   {
     return NodeRef::createSpaceNode(engine(), tok.text.toString());
+  }
+  else if (tok.kind == Token::EndOfLine)
+  {
+    return NodeRef::createEndOfLine(engine());
   }
   else
   {
@@ -445,7 +449,7 @@ NodeRef Parser::readCommand(const Token & token)
           group.push_back(arg);
         }
 
-        if (!group.isEmpty() && group.back().isSpace())
+        if (!group.isEmpty() && (group.back().isSpace() || group.back().isEndOfLine()))
         {
           /// TODO : remove last element from group
         }
@@ -463,7 +467,7 @@ NodeRef Parser::readCommand(const Token & token)
       }
       nodes.push_back(group);
 
-      /// TODO : remove glue at end and beginning of group.
+      /// TODO : remove space of eol at end and beginning of group.
     }
   }
 

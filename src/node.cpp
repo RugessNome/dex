@@ -4,6 +4,7 @@
 
 #include "dex/node.h"
 
+#include "dex/endoflinenode.h"
 #include "dex/groupnode.h"
 #include "dex/spacenode.h"
 #include "dex/wordnode.h"
@@ -25,6 +26,13 @@ Node::Node(const script::Value & val)
   : mValue(val)
 {
 
+}
+
+bool Node::isEndOfLine() const
+{
+  if (mValue.isNull())
+    return false;
+  return mValue.type().baseType() == EndOfLineNode::type_info().type;
 }
 
 bool Node::isSpaceNode() const
@@ -165,6 +173,14 @@ NodeRef NodeRef::createWordNode(script::Engine *e, const QString & str)
   script::Value arg = e->newString(str);
   script::Value val = e->construct(WordNode::type_info().type, {arg});
   e->destroy(arg);
+  script::Value result = e->construct(type_info().type, {});
+  result.impl()->set_ref(val.impl());
+  return result;
+}
+
+NodeRef NodeRef::createEndOfLine(script::Engine *e)
+{
+  script::Value val = e->construct(EndOfLineNode::type_info().type, {});
   script::Value result = e->construct(type_info().type, {});
   result.impl()->set_ref(val.impl());
   return result;

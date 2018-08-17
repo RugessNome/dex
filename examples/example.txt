@@ -4,6 +4,7 @@
  * \brief The Bar class.
  * This is an example file 
  * with \b big text.
+ *
  * This class is related to \t Foo.
  */
 
