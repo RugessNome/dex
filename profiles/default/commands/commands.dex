@@ -1,8 +1,6 @@
 
 import node;
-import nodes.class;
-import nodes.function;
-import nodes.type;
+import nodes;
 
 void fun(const Ref<Node> & name, Span::Line)
 {
@@ -52,4 +50,22 @@ void returns(const Ref<Node> & description, Span::Line)
 Ref<Node> t(const Ref<Node> & t, Span::Word)
 {
   return Ref<Type>::make(t);
+}
+
+
+namespace code
+{
+	
+void begin(BracketArguments args)
+{
+  auto codeblock = Ref<CodeBlock>::make();
+  state.enter(codeblock);
+}
+
+void end()
+{
+  auto codeblock = state.leave();
+  state.dispatch(codeblock);
+}
+	
 }

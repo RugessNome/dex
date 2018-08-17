@@ -8,6 +8,12 @@
  * This class is related to \t Foo.
  * 
  * This {is a group}.
+ *
+ * \begin{code}
+ * int a = 5;
+ * if(a > 5)
+ *   print("Hell no!");
+ * \end{code}
  */
 
  

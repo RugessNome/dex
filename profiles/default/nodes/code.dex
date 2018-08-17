@@ -1,0 +1,21 @@
+
+import node;
+
+class CodeBlock : Node
+{
+public:
+  Ref<GroupNode> nodes;
+public:
+  CodeBlock()
+  {
+    nodes = Ref<GroupNode>::make();
+  }
+  
+  ~CodeBlock() = default;
+  
+    
+  void add(const Ref<Node> & n)
+  {
+    nodes.get().push_back(n);
+  }
+};
