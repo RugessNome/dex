@@ -9,7 +9,7 @@
  * 
  * This {is a group}.
  *
- * \begin{code}
+ * \begin[cpp]{code}
  * int a = 5;
  * if(a > 5)
  *   print("Hell no!");

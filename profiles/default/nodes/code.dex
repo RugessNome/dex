@@ -5,6 +5,7 @@ class CodeBlock : Node
 {
 public:
   Ref<GroupNode> nodes;
+  String lang;
 public:
   CodeBlock()
   {

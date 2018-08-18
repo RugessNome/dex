@@ -59,6 +59,15 @@ namespace code
 void begin(BracketArguments args)
 {
   auto codeblock = Ref<CodeBlock>::make();
+  
+  for(auto it = args.begin(); it != args.end(); ++it)
+  {
+    if(it.key().isEmpty() || it.key() == "lang")
+	{
+	  codeblock.get().lang = it.value().toString();
+	}
+  }
+  
   state.enter(codeblock);
 }
 

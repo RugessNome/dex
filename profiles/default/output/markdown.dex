@@ -49,6 +49,7 @@ void write_type_node(File & f, Type & n)
 void write_code_block(File & f, CodeBlock & n)
 {
   f.write("```");
+  f.write(n.lang);
   simplify_spaces = false;
   write_node(f, n.nodes);
   simplify_spaces = true;
