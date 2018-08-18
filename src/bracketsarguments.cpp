@@ -71,6 +71,12 @@ static script::Value count(script::FunctionCall *c)
   return c->engine()->newInt(self.size());
 }
 
+static script::Value at(script::FunctionCall *c)
+{
+  BracketsArguments & self = bracket_arguments_cast(c->thisObject());
+  return make_iterator(c->engine(), self.begin() + c->arg(1).toInt());
+}
+
 static script::Value begin(script::FunctionCall *c)
 {
   BracketsArguments & self = bracket_arguments_cast(c->thisObject());
@@ -123,6 +129,22 @@ static script::Value value(script::FunctionCall *c)
 {
   BracketsArguments::Iterator & self = iterator_cast(c->thisObject());
   return Variant::create(c->engine(), self->second);
+}
+
+static script::Value eq(script::FunctionCall *c)
+{
+  BracketsArguments::Iterator & self = iterator_cast(c->thisObject());
+  BracketsArguments::Iterator & other = iterator_cast(c->arg(1));
+
+  return c->engine()->newBool(self == other);
+}
+
+static script::Value neq(script::FunctionCall *c)
+{
+  BracketsArguments::Iterator & self = iterator_cast(c->thisObject());
+  BracketsArguments::Iterator & other = iterator_cast(c->arg(1));
+
+  return c->engine()->newBool(self != other);
 }
 
 static script::Value pre_incr(script::FunctionCall *c)
@@ -214,6 +236,18 @@ static void register_iterator_type(script::Class brackets)
     .returns(Variant::type_info().type)
     .create();
 
+  it.Operation(EqualOperator, callbacks::iterator::eq)
+    .setConst()
+    .params(Type::cref(it.id()))
+    .returns(Type::Boolean)
+    .create();
+
+  it.Operation(InequalOperator, callbacks::iterator::neq)
+    .setConst()
+    .params(Type::cref(it.id()))
+    .returns(Type::Boolean)
+    .create();
+
   it.Operation(PreIncrementOperator, callbacks::iterator::pre_incr)
     .returns(Type::ref(it.id()))
     .create();
@@ -252,6 +286,11 @@ void BracketsArguments::register_type(script::Namespace ns)
   c.Method("count", callbacks::count)
     .setConst()
     .returns(Type::Int)
+    .create();
+
+  c.Method("at", callbacks::at)
+    .setConst()
+    .returns(type_info().iterator_type)
     .create();
 
   c.Method("begin", callbacks::begin)
