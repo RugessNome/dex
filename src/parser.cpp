@@ -361,19 +361,24 @@ BracketsArguments Parser::readBracketsArguments()
   QPair<QString, QString> argument;
   bool equal_sign_read = false;
   Token tok = mLexer.read();
-  while (tok.text != "]")
+  for(;;)
   {
-    if (tok.text == ",")
+    if (tok.text == "," || tok.text == "]")
     {
-      if (equal_sign_read)
+      if (!argument.first.isEmpty())
       {
-        result.add(argument.first, argument.second);
+        if (equal_sign_read)
+          result.add(argument.first, argument.second);
+        else
+          result.add(argument.first);
       }
-      else
-      {
-        result.add(argument.first);
-      }
+
+      argument.first.clear();
+      argument.second.clear();
       equal_sign_read = false;
+
+      if (tok.text == "]")
+        break;
     }
     else if (tok.text == "=")
     {
