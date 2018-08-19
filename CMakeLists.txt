@@ -41,3 +41,8 @@ add_dependencies(dex libscript)
 target_include_directories(dex PUBLIC "${LIBSCRIPT_PROJECT_DIR}/include")
 target_include_directories(dex PUBLIC "lib/libscript")
 target_link_libraries(dex libscript)
+
+file(COPY "profiles" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+add_custom_command(TARGET dex PRE_BUILD
+                   COMMAND ${CMAKE_COMMAND} -E copy_directory
+                       ${CMAKE_SOURCE_DIR}/profiles $<TARGET_FILE_DIR:dex>/profiles)

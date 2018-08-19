@@ -29,6 +29,8 @@
 #include <script/interpreter/executioncontext.h>
 #include <script/script.h>
 
+#include <QSettings>
+
 #include <QDebug>
 
 #include <iostream>
@@ -89,7 +91,21 @@ Application::Application(int & argc, char **argv)
   dex::Variant::register_type(mEngine.rootNamespace());
   dex::File::register_type(mEngine.rootNamespace());
 
-  mInputDirectory = QDir::current();
+  mSettings = new QSettings("dex.ini", QSettings::IniFormat, this);
+
+  if (mSettings->contains("inputdir"))
+    mInputDirectory = QDir{ mSettings->value("inputdir").toString() };
+  else
+    mInputDirectory = QDir::current();
+
+  if (mSettings->contains("profile"))
+    mProfile = mSettings->value("profile").toString();
+
+  if (mSettings->contains("outputformat"))
+    mOutputFormat = mSettings->value("outputformat").toString();
+  
+  if (mSettings->contains("outputdir"))
+    mOutputDirectory = QDir{ mSettings->value("outputdir").toString() };
 }
 
 static script::Script get_script(const std::vector<script::Script> & list, const std::string & path)
@@ -121,14 +137,16 @@ int Application::run()
 
 void Application::setup()
 {
-  if (!mProfileDir.exists())
+  QString pdir = profileDir().absolutePath();
+
+  if (!profileDir().exists())
   {
     qDebug() << "Profile dir does not exist";
     throw std::runtime_error{ "Profile dir does not exists" };
   }
 
   scriptEngine()->setScriptExtension(".dex");
-  scriptEngine()->setSearchDirectory(mProfileDir.absolutePath().toUtf8().data());
+  scriptEngine()->setSearchDirectory(profileDir().absolutePath().toUtf8().data());
 
   register_span_types();
   dex::BracketsArguments::register_type(scriptEngine()->rootNamespace());
@@ -139,7 +157,7 @@ void Application::setup()
   scriptEngine()->rootNamespace().addValue("state", mState);
   scriptEngine()->manage(mState);
 
-  QDir commands = QDir{ mProfileDir.absoluteFilePath("commands") };
+  QDir commands = QDir{ profileDir().absoluteFilePath("commands") };
 
   QList<script::Script> scripts;
   for (const auto & f : commands.entryInfoList())
@@ -182,7 +200,7 @@ void Application::parserCommandLineArgs()
   for (int i(0); i < args.size(); ++i)
   {
     if (args.at(i) == "-p")
-      mProfileDir = QDir{ args.at(i + 1) };
+      mProfile = args.at(i + 1);
 
     if (args.at(i) == "-i")
       mInputDirectory = QDir{ args.at(i + 1) };
@@ -193,6 +211,11 @@ void Application::parserCommandLineArgs()
     if (args.at(i) == "-g")
       mOutputFormat = args.at(i + 1);
   }
+
+  mSettings->setValue("inputdir", mInputDirectory.absolutePath());
+  mSettings->setValue("profile", mProfile);
+  mSettings->setValue("outputformat", mOutputFormat);
+  mSettings->setValue("outputdir", mOutputDirectory.absolutePath());
 }
 
 void Application::register_span_types()
@@ -274,7 +297,7 @@ void Application::load_nodes()
 {
   using namespace script;
 
-  Script s = mEngine.newScript(SourceFile{ mProfileDir.absoluteFilePath("node.dex").toUtf8().data() });
+  Script s = mEngine.newScript(SourceFile{ profileDir().absoluteFilePath("node.dex").toUtf8().data() });
   if (!s.compile())
   {
     for (const auto &m : s.messages())
@@ -323,7 +346,7 @@ void Application::load_state()
 {
   using namespace script;
 
-  Script s = mEngine.newScript(SourceFile{ mProfileDir.absoluteFilePath("state.dex").toUtf8().data() });
+  Script s = mEngine.newScript(SourceFile{ profileDir().absoluteFilePath("state.dex").toUtf8().data() });
   if (!s.compile())
   {
     qDebug() << "Could not load state file";
@@ -360,13 +383,13 @@ void Application::process(const QString & dirPath)
 {
   dex::Parser parser{ mRootEnvironment };
 
-  if (!mProfileDir.exists("parser.dex"))
+  if (!profileDir().exists("parser.dex"))
   {
     qDebug() << "Profile is missing parser.dex";
     throw std::runtime_error{ "Profile is missing parser.dex" };
   }
 
-  const QString filepath = mProfileDir.filePath("parser.dex");
+  const QString filepath = profileDir().filePath("parser.dex");
 
   script::Script parser_script = scriptEngine()->newScript(script::SourceFile{ filepath.toUtf8().data() });
   if (!parser_script.compile())
@@ -473,7 +496,7 @@ static QList<QSharedPointer<dex::Output>> load_outputs(QList<script::Script> & s
 void Application::load_outputs()
 {
   QList<script::Script> scripts;
-  QDir output = mProfileDir;
+  QDir output = profileDir();
   output.cd("output");
   if (!output.exists())
   {
@@ -483,4 +506,9 @@ void Application::load_outputs()
 
   load_outputs_scripts_recur(*this, scripts, output);
   mOutputs = ::load_outputs(scripts);
+}
+
+QDir Application::profileDir() const
+{
+  return QDir{ QCoreApplication::applicationDirPath() + "/profiles/" + mProfile };
 }

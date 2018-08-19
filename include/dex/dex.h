@@ -22,6 +22,8 @@ class Parser;
 class Output;
 } // namespace dex
 
+class QSettings;
+
 class Application : public QApplication
 {
   Q_OBJECT
@@ -48,15 +50,18 @@ private:
   void process(dex::Parser & parser, const QDir & dir);
   void load_outputs();
 
+  QDir profileDir() const;
+
 private:
   script::Engine mEngine;
   dex::State mState;
   QDir mInputDirectory;
   QDir mOutputDirectory;
   QString mOutputFormat;
-  QDir mProfileDir;
+  QString mProfile;
   QSharedPointer<dex::Environment> mRootEnvironment;
   QList<QSharedPointer<dex::Output>> mOutputs;
+  QSettings *mSettings;
 };
 
 #if defined(qApp)
