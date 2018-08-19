@@ -426,7 +426,9 @@ void Application::process(dex::Parser & parser, const QDir & dir)
   for (const auto & f : dir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot))
   {
     if (f.isDir())
-      process(parser, QDir{ f.absolutePath() });
+    {
+      process(parser, QDir{ f.absoluteFilePath() });
+    }
     else
     {
       parser.process(QStringList{ f.absoluteFilePath() });
