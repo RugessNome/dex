@@ -52,6 +52,10 @@ Ref<Node> t(const Ref<Node> & t, Span::Word)
   return Ref<Type>::make(t);
 }
 
+Ref<Node> l(const Ref<Node> & url, const Ref<Node> & text)
+{
+  return Ref<Link>::make(url, text);
+}
 
 namespace code
 {

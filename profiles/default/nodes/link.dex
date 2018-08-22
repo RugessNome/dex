@@ -1,0 +1,17 @@
+
+import node;
+
+class Link : Node
+{
+public:
+  Ref<Node> url;
+  Ref<Node> text;
+  
+public:
+  Link(const Ref<Node> & u, const Ref<Node> & t)
+    : url(u), text(t)
+  {
+  }
+
+  ~Link() = default;
+};

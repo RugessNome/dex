@@ -14,6 +14,8 @@
  * if(a > 5)
  *   print("Hell no!");
  * \end{code}
+ *
+ * I also wanted to link to \l {http://www.github.com} GitHub.
  */
 
  
