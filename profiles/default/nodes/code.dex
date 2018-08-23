@@ -20,3 +20,15 @@ public:
     nodes.get().push_back(n);
   }
 };
+
+class InlineCode : SingleArgumentNode
+{
+public:
+  InlineCode(const Ref<Node> & text)
+    : SingleArgumentNode(text)
+  {
+
+  }
+  
+  ~InlineCode() = default;
+};

@@ -16,6 +16,8 @@
  * \end{code}
  *
  * I also wanted to link to \l {http://www.github.com} GitHub.
+ *
+ * The main methods are \c foo and \c{bar()}.
  */
 
  
