@@ -118,7 +118,7 @@ void write_class(File & f, Class & c)
   }
 }
 
-void write_mem_fun(File & f, const Function & fun)
+void write_mem_fun(File & f, Function & fun)
 {
   f.write("## ");
   write_node(f, fun.name);
@@ -149,6 +149,12 @@ void write_mem_fun(File & f, const Function & fun)
 	write_node(f, fun.returns);
 	f.write("\n");
   }
+  
+  if(!fun.description.isNull())
+  {
+	write_node(f, fun.description); 
+  }
+  
   
   f.write("\n\n");
 }

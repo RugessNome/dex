@@ -34,3 +34,13 @@
  * \param The second integer to add 
  * \brief Adds two integers.
  */
+
+ /*!
+   \fun int mul(int a, int b);
+   \brief Multiplies two integers.
+   \begin[cpp]{code}
+     int a = 5;
+     if(a > 5)
+       print("Hell no!");
+   \end{code}
+ */

@@ -40,6 +40,11 @@ public:
       Class & c = stack.back().as<Class>();
 	  c.description.get().push_back(node);
     }
+	else if(stack.back().is<Function>())
+    {
+      Function & fun = stack.back().as<Function>();
+	  fun.description.get().push_back(node);
+    }
 	else if(stack.back().is<CodeBlock>())
 	{
 	  CodeBlock & cb = stack.back().as<CodeBlock>();
