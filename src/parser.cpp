@@ -297,11 +297,15 @@ NodeRef Parser::read()
   return createNode(token);
 }
 
+/// TODO: maybe refactor with Parser::read()
 NodeRef Parser::readArgument()
 {
   auto token = mLexer.read();
   if (token.kind == Token::Space) /// TODO: should we consider EOL too ?
     token = mLexer.read();
+
+  if (token.kind == Token::EscapeCharacter)
+    return readCommand(mLexer.read());
 
   return createNode(token);
 }
