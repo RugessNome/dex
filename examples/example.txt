@@ -18,6 +18,12 @@
  * I also wanted to link to \l {http://www.github.com} GitHub.
  *
  * The main methods are \c foo and \c{bar()}.
+ *
+ * Main methods:
+ * \begin{list}
+ *   \li \c foo
+ *   \li also there is \b bar.
+ * \end{list}
  */
 
  

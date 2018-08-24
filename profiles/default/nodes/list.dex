@@ -1,0 +1,19 @@
+
+import node;
+
+class ListNode : Node
+{
+public:
+  List<Ref<Node>> items;
+
+public:
+  ListNode()
+  {
+
+  }
+
+  ~ListNode()
+  {
+
+  }
+};
