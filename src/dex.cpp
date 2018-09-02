@@ -200,22 +200,29 @@ void Application::parserCommandLineArgs()
   for (int i(0); i < args.size(); ++i)
   {
     if (args.at(i) == "-p")
+    {
       mProfile = args.at(i + 1);
+      mSettings->setValue("profile", mProfile);
+    }
 
     if (args.at(i) == "-i")
+    {
       mInputDirectory = QDir{ args.at(i + 1) };
+      mSettings->setValue("inputdir", args.at(i + 1));
+    }
 
     if (args.at(i) == "-o")
+    {
       mOutputDirectory = QDir{ args.at(i + 1) };
+      mSettings->setValue("outputdir", args.at(i + 1));
+    }
 
     if (args.at(i) == "-g")
+    {
       mOutputFormat = args.at(i + 1);
+      mSettings->setValue("outputformat", mOutputFormat);
+    }
   }
-
-  mSettings->setValue("inputdir", mInputDirectory.absolutePath());
-  mSettings->setValue("profile", mProfile);
-  mSettings->setValue("outputformat", mOutputFormat);
-  mSettings->setValue("outputdir", mOutputDirectory.absolutePath());
 }
 
 void Application::register_span_types()
