@@ -101,16 +101,11 @@ NodeRef::NodeRef(NodeRef && other)
   other.mValue = script::Value{};
 }
 
-NodeRef::NodeRef(const script::Value & val)
+NodeRef::NodeRef(script::Value && val)
   : mValue(val)
 {
   if (!mValue.isNull() && mValue == script::Value::Void)
     mValue = script::Value{};
-}
-
-NodeRef::NodeRef(const Node & n)
-{
-
 }
 
 NodeRef::~NodeRef()
@@ -122,7 +117,7 @@ NodeRef::~NodeRef()
 
 Node NodeRef::getNode() const
 {
-  return Node{ script::Value{ mValue.impl()->data.builtin.ref } };
+  return Node{ script::Value{ mValue.getRef() } };
 }
 
 bool NodeRef::toBool() const
@@ -174,7 +169,7 @@ NodeRef NodeRef::createWordNode(script::Engine *e, const QString & str)
   script::Value val = e->construct(WordNode::type_info().type, {arg});
   e->destroy(arg);
   script::Value result = e->construct(type_info().type, {});
-  result.impl()->set_ref(val.impl());
+  result.setRef(val.impl());
   return result;
 }
 
@@ -182,7 +177,7 @@ NodeRef NodeRef::createEndOfLine(script::Engine *e)
 {
   script::Value val = e->construct(EndOfLineNode::type_info().type, {});
   script::Value result = e->construct(type_info().type, {});
-  result.impl()->set_ref(val.impl());
+  result.setRef(val.impl());
   return result;
 }
 
@@ -192,7 +187,7 @@ NodeRef NodeRef::createSpaceNode(script::Engine *e, const QString & str)
   script::Value val = e->construct(SpaceNode::type_info().type, { arg });
   e->destroy(arg);
   script::Value result = e->construct(type_info().type, {});
-  result.impl()->set_ref(val.impl());
+  result.setRef(val.impl());
   return result;
 }
 
@@ -200,7 +195,7 @@ NodeRef NodeRef::createGroupNode(script::Engine *e)
 {
   script::Value val = e->construct(GroupNode::type_info().type, {});
   script::Value result = e->construct(type_info().type, {});
-  result.impl()->set_ref(val.impl());
+  result.setRef(val.impl());
   return result;
 }
 

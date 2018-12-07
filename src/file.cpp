@@ -6,6 +6,8 @@
 
 #include <script/class.h>
 #include <script/classbuilder.h>
+#include <script/constructorbuilder.h>
+#include <script/destructorbuilder.h>
 #include <script/engine.h>
 #include <script/enum.h>
 #include <script/enumbuilder.h>
@@ -24,19 +26,20 @@ namespace callbacks
 
 static script::Value ctor(script::FunctionCall *c)
 {
-  new (c->thisObject().memory()) QFile{};
+  new (c->thisObject().getMemory(script::passkey{})) QFile{};
   return c->thisObject();
 }
 
 static script::Value dtor(script::FunctionCall *c)
 {
   (static_cast<QFile*>(c->thisObject().memory()))->~QFile();
+  c->thisObject().releaseMemory(script::passkey{});
   return script::Value::Void;
 }
 
 static script::Value ctor_string(script::FunctionCall *c)
 {
-  new (c->thisObject().memory()) QFile{ c->arg(0).toString() };
+  new (c->thisObject().getMemory(script::passkey{})) QFile{ c->arg(1).toString() };
   return c->thisObject();
 }
 
@@ -108,7 +111,7 @@ static void register_open_mode_flag(script::Class & file)
 {
   using namespace script;
 
-  Enum open_mode_flag = file.Enum("OpenModeFlag").get();
+  Enum open_mode_flag = file.newEnum("OpenModeFlag").get();
   open_mode_flag.addValue("ReadOnly", QIODevice::ReadOnly);
   open_mode_flag.addValue("WriteOnly", QIODevice::WriteOnly);
   open_mode_flag.addValue("ReadWrite", QIODevice::ReadWrite);
@@ -120,51 +123,51 @@ void File::register_type(script::Namespace ns)
 {
   using namespace script;
 
-  Class file = ns.Class("File").setFinal(true).get();
+  Class file = ns.newClass("File").setFinal(true).get();
   type_info().type = file.id();
   register_open_mode_flag(file);
 
-  file.Constructor(callbacks::ctor).create();
-  file.newDestructor(callbacks::dtor);
+  file.newConstructor(callbacks::ctor).create();
+  file.newDestructor(callbacks::dtor).create();
 
-  file.Constructor(callbacks::ctor_string).params(Type::String).create();
+  file.newConstructor(callbacks::ctor_string).params(Type::String).create();
 
-  file.Method("close", callbacks::close)
+  file.newMethod("close", callbacks::close)
     .create();
 
-  file.Method("fileName", callbacks::filename)
+  file.newMethod("fileName", callbacks::filename)
     .setConst()
     .returns(Type::String)
     .create();
 
-  file.Method("setFileName", callbacks::set_filename)
+  file.newMethod("setFileName", callbacks::set_filename)
     .params(Type::cref(Type::String))
     .create();
 
-  file.Method("open", callbacks::open)
+  file.newMethod("open", callbacks::open)
     .returns(Type::Boolean)
     .params(Type::Int)
     .create();
 
-  file.Method("read", callbacks::read)
+  file.newMethod("read", callbacks::read)
     .returns(Type::String)
     .params(Type::Int)
     .create();
 
-  file.Method("readLine", callbacks::read_line)
+  file.newMethod("readLine", callbacks::read_line)
     .returns(Type::String)
     .create();
 
-  file.Method("readAll", callbacks::read_all)
+  file.newMethod("readAll", callbacks::read_all)
     .returns(Type::String)
     .create();
 
-  file.Method("size", callbacks::size)
+  file.newMethod("size", callbacks::size)
     .setConst()
     .returns(Type::Int)
     .create();
 
-  file.Method("write", callbacks::write)
+  file.newMethod("write", callbacks::write)
     .params(Type::cref(Type::String))
     .create();
 }

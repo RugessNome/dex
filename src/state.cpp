@@ -23,4 +23,10 @@ State State::create(script::Engine *e)
   return e->construct(type_info().type, {});
 }
 
+void State::destroy()
+{
+  mValue.engine()->destroy(mValue);
+  mValue = script::Value{};
+}
+
 } // namespace dex

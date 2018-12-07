@@ -105,8 +105,7 @@ NodeRef UserCommand::invoke(Parser*, const BracketsArguments & brackets, const Q
     values.push_back(CommandSpan::expose(command_span, e));
 
   script::Value val = e->call(mFunction, values);
-
-  NodeRef result{ val };
+  NodeRef result{ std::move(val) };
 
   for (const auto & v : values)
     e->destroy(v);

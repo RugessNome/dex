@@ -4,14 +4,19 @@
 
 #include "dex/ref.h"
 
+#include <script/castbuilder.h>
 #include <script/classtemplate.h>
 #include <script/classtemplateinstancebuilder.h>
+#include <script/constructorbuilder.h>
 #include <script/conversions.h>
+#include <script/destructorbuilder.h>
 #include <script/engine.h>
+#include <script/initialization.h>
 #include <script/interpreter/executioncontext.h>
 #include <script/functionbuilder.h>
 #include <script/functiontemplate.h>
 #include <script/namespace.h>
+#include <script/operatorbuilder.h>
 #include <script/overloadresolution.h>
 #include <script/templateargumentdeduction.h>
 #include <script/templatebuilder.h>
@@ -27,63 +32,64 @@ namespace callbacks
 
 script::Value default_ctor(script::FunctionCall *c)
 {
-  c->thisObject().impl()->set_ref(nullptr);
+  c->thisObject().setRef(nullptr);
   return c->thisObject();
 }
 
 script::Value copy_ctor(script::FunctionCall *c)
 {
-  script::Value other = c->arg(0);
-  c->thisObject().impl()->set_ref(other.impl()->data.builtin.ref);
+  script::Value other = c->arg(1);
+  c->thisObject().setRef(other.getRef());
   return c->thisObject();
 }
 
 script::Value dtor(script::FunctionCall *c)
 {
-  c->thisObject().impl()->set_ref(nullptr);
-  c->thisObject().impl()->clear();
+  c->thisObject().setRef(nullptr);
+  c->thisObject().clear(script::passkey{});
   return c->thisObject();
 }
 
 script::Value get(script::FunctionCall *c)
 {
-  if (c->thisObject().impl()->data.builtin.ref == nullptr)
+  if (c->thisObject().getRef() == nullptr)
     throw std::runtime_error{ "Call to get() on empty Ref" };
 
   auto self = c->thisObject();
-  auto ret = script::Value{ self.impl()->data.builtin.ref };
+  auto ret = script::Value{ self.getRef() };
   return ret;
 }
 
 script::Value is_null(script::FunctionCall *c)
 {
-  return c->engine()->newBool(c->thisObject().impl()->data.builtin.ref == nullptr);
+  return c->engine()->newBool(c->thisObject().getRef() == nullptr);
 }
 
 script::Value is_valid(script::FunctionCall *c)
 {
-  return c->engine()->newBool(c->thisObject().impl()->data.builtin.ref != nullptr);
+  return c->engine()->newBool(c->thisObject().getRef() != nullptr);
 }
 
 script::Value assign(script::FunctionCall *c)
 {
   script::Value other = c->arg(1);
-  c->thisObject().impl()->set_ref(other.impl()->data.builtin.ref);
+  c->thisObject().setRef(other.getRef());
   return c->thisObject();
 }
 
 script::Value eq(script::FunctionCall *c)
 {
   script::Value other = c->arg(1);
-  const bool result = c->thisObject().impl()->data.builtin.ref == other.impl()->data.builtin.ref;
+  const bool result = c->thisObject().getRef() == other.getRef();
   return c->engine()->newBool(result);
 }
 
 script::Value cast(script::FunctionCall *c)
 {
-  script::ValueImpl *ptr = c->thisObject().impl()->data.builtin.ref;
+  script::ValueImpl *ptr = c->thisObject().getRef();
+  /// TODO: check that cast is correct !!
   script::Value ret = c->engine()->construct(c->callee().returnType(), {});
-  ret.impl()->set_ref(ptr);
+  ret.setRef(ptr);
   return ret;
 }
 
@@ -107,7 +113,7 @@ static void inject_conversions(script::Class & ref, const script::Class & src)
     return;
 
   // we add a conversion from Ref<T> to Ref<Base>
-  ref.Conversion(get_ref_instance(src).id(), callbacks::cast).create();
+  ref.newConversion(get_ref_instance(src).id(), callbacks::cast).create();
 }
 
 static void inject_conversions_recursively(script::Class & ref, const script::Class & src)
@@ -145,7 +151,7 @@ void make_ref_substitute(script::FunctionBuilder & builder, script::FunctionTemp
 {
   using namespace script;
 
-  builder.returns(builder.proto.at(0).baseType());
+  builder.returns(builder.proto_.at(0).baseType());
   builder.setStatic();
 
   for (const auto & p : targs.back().pack->args())
@@ -161,7 +167,7 @@ public:
   ~MakeRefTemplateData() = default;
 
   script::Function target;
-  std::vector<script::ConversionSequence> conversions;
+  std::vector<script::Conversion> conversions;
   std::vector<script::Type> types;
 };
 
@@ -172,11 +178,14 @@ static script::Value make_ref_template(script::FunctionCall *c)
 {
   using namespace script;
   auto data = std::static_pointer_cast<MakeRefTemplateData>(c->callee().data());
-  std::vector<Value> args{ c->args().begin(), c->args().end() };
-  c->engine()->applyConversions(args, data->types, data->conversions);
-  Value node = c->engine()->invoke(data->target, args);
+  Value content = c->engine()->allocate(data->target.memberOf().id());
+  std::vector<Value> args;
+  args.push_back(content);
+  args.insert(args.end(), c->args().begin(), c->args().end());
+  c->engine()->applyConversions(args, data->conversions);
+  c->engine()->invoke(data->target, args);
   script::Value result = c->engine()->construct(c->callee().returnType(), {});
-  result.impl()->set_ref(node.impl());
+  result.setRef(content.impl());
   return result;
 }
 
@@ -192,13 +201,15 @@ std::pair<script::NativeFunctionSignature, std::shared_ptr<script::UserData>> ma
   Class target_type = make_ref.engine()->getClass(ref_type.arguments().front().type);
 
   std::vector<Type> types = instance.prototype().parameters();
+  types.insert(types.begin(), Type::ref(target_type.id()));
 
   OverloadResolution resol = OverloadResolution::New(make_ref.engine());
   if (!resol.process(target_type.constructors(), types))
     throw TemplateInstantiationError{ "Ref<T>::make() : Could not find valid constructor" };
 
   data->target = resol.selectedOverload();
-  data->conversions = resol.conversionSequence();
+  for (const auto init : resol.initializations())
+    data->conversions.push_back(init.conversion());
   data->types = data->target.prototype().parameters();
 
   return { callbacks::make_ref_template, data };
@@ -208,7 +219,7 @@ void register_make_ref_template(script::Class ref_instance)
 {
   using namespace script;
 
-  Symbol{ ref_instance }.FunctionTemplate("make")
+  Symbol{ ref_instance }.newFunctionTemplate("make")
     .params(TemplateParameter{ TemplateParameter::TypeParameter{}, TemplateParameter::ParameterPack{}, "Args" })
     .setScope(Scope{ ref_instance })
     .deduce(make_ref_deduce)
@@ -241,7 +252,7 @@ namespace callbacks
 static script::Value is_template(script::FunctionCall *c)
 {
   using namespace script;
-  Value val{ c->thisObject().impl()->data.builtin.ref };
+  Value val{ c->thisObject().getRef() };
   if(val.isNull())
     return c->engine()->newBool(false);
 
@@ -267,7 +278,7 @@ void register_is_template(script::Class ref_instance)
 {
   using namespace script;
 
-  Symbol{ ref_instance }.FunctionTemplate("is")
+  Symbol{ ref_instance }.newFunctionTemplate("is")
     .params(TemplateParameter{ TemplateParameter::TypeParameter{}, "T" })
     .setScope(Scope{ ref_instance })
     .deduce(is_template_deduce)
@@ -302,7 +313,7 @@ namespace callbacks
 static script::Value as_template(script::FunctionCall *c)
 {
   using namespace script;
-  Value val{ c->thisObject().impl()->data.builtin.ref };
+  Value val{ c->thisObject().getRef() };
   if (!val.type().isObjectType() || !c->callee().arguments().front().type.isObjectType())
   {
     return c->engine()->construct(c->callee().returnType(), {});
@@ -315,9 +326,10 @@ static script::Value as_template(script::FunctionCall *c)
     return c->engine()->construct(c->callee().returnType(), {});
   }
 
-  Value ret = c->engine()->uninitialized(c->callee().returnType());
-  ret.impl()->set_ref(val.impl());
-  return ret;
+
+  return c->engine()->construct(c->callee().returnType(), [&val](script::Value &ret) -> void {
+    ret.setRef(val.impl());
+  });
 }
 
 } // namespace callbacks
@@ -332,7 +344,7 @@ void register_as_template(script::Class ref_instance)
 {
   using namespace script;
 
-  Symbol{ ref_instance }.FunctionTemplate("as")
+  Symbol{ ref_instance }.newFunctionTemplate("as")
     .params(TemplateParameter{ TemplateParameter::TypeParameter{}, "T" })
     .setScope(Scope{ ref_instance })
     .deduce(as_template_deduce)
@@ -346,36 +358,36 @@ static void fill_ref_instance(script::Class & instance, const script::Class & cl
 {
   using namespace script;
 
-  instance.Constructor(callbacks::default_ctor).create();
-  instance.Constructor(callbacks::copy_ctor).params(Type::cref(instance.id())).create();
+  instance.newConstructor(callbacks::default_ctor).create();
+  instance.newConstructor(callbacks::copy_ctor).params(Type::cref(instance.id())).create();
 
-  instance.newDestructor(callbacks::dtor);
+  instance.newDestructor(callbacks::dtor).create();
 
-  instance.Method("get", callbacks::get)
+  instance.newMethod("get", callbacks::get)
     .setConst()
     .returns(Type::ref(cla.id()))
     .create();
 
-  instance.Method("isNull", callbacks::is_null)
+  instance.newMethod("isNull", callbacks::is_null)
     .setConst()
     .returns(Type::Boolean)
     .create();
 
-  instance.Method("isValid", callbacks::is_valid)
+  instance.newMethod("isValid", callbacks::is_valid)
     .setConst()
     .returns(Type::Boolean)
     .create();
 
-  instance.Operation(AssignmentOperator, callbacks::assign)
+  instance.newOperator(AssignmentOperator, callbacks::assign)
     .returns(Type::ref(instance.id()))
     .params(Type::cref(instance.id())).create();
 
-  instance.Operation(EqualOperator, callbacks::eq)
+  instance.newOperator(EqualOperator, callbacks::eq)
     .setConst()
     .returns(Type::Boolean)
     .params(Type::cref(instance.id())).create();
 
-  instance.Conversion(Type::ref(cla.id()), callbacks::get)
+  instance.newConversion(Type::ref(cla.id()), callbacks::get)
     .setConst()
     .create();
 
@@ -415,7 +427,7 @@ void register_ref_template(script::Namespace ns)
 {
   using namespace script;
 
-  ClassTemplate ref = Symbol{ ns }.ClassTemplate("Ref")
+  ClassTemplate ref = Symbol{ ns }.newClassTemplate("Ref")
     .params(TemplateParameter{ TemplateParameter::TypeParameter{}, "T" })
     .setScope(Scope{ ns })
     .setCallback(ref_template)

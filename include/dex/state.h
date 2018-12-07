@@ -28,6 +28,8 @@ public:
 
   static State create(script::Engine *e);
 
+  void destroy();
+
   State & operator=(const State & ) = default;
 
   inline const script::Value & get() const { return mValue; }

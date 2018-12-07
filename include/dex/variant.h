@@ -31,7 +31,7 @@ public:
   static void register_type(script::Namespace ns);
 
   static script::Value create(script::Engine *e, const QVariant & value);
-  static QVariant & get(const script::Value & val);
+  static QVariant & get(script::Value val);
 };
 
 } // namespace dex

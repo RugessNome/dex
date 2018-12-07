@@ -17,28 +17,28 @@ std::shared_ptr<ValueTypeInfo> ValueTypeInfo::get(const script::Function & f)
 }
 
 Value::Value()
-  : container(nullptr)
+  : typeinfo(nullptr)
 {
 
 }
 
 Value::Value(const Value & other)
-  : container(other.container)
+  : typeinfo(other.typeinfo)
 {
   if (isValid())
     value = engine()->copy(other.value);
 }
 
 Value::Value(Value && other)
-  : container(other.container)
+  : typeinfo(other.typeinfo)
   , value(other.value)
 {
-  other.container = nullptr;
+  other.typeinfo = nullptr;
   other.value = script::Value{};
 }
 
 Value::Value(const std::shared_ptr<ValueTypeInfo> & c, const script::Value & val)
-  : container(c)
+  : typeinfo(c)
 {
   value = engine()->copy(val);
 }
@@ -52,12 +52,12 @@ Value::~Value()
 
 script::Engine * Value::engine() const
 {
-  return container->assignment.engine();
+  return typeinfo->assignment.engine();
 }
 
 script::Value Value::release()
 {
-  container = nullptr;
+  typeinfo = nullptr;
   script::Value ret = value;
   value = script::Value{};
   return ret;
@@ -71,7 +71,7 @@ Value & Value::operator=(const Value & other)
   if (isValid())
     engine()->destroy(value);
 
-  container = other.container;
+  typeinfo = other.typeinfo;
   if (isValid())
     value = engine()->copy(other.value);
 
@@ -86,7 +86,7 @@ bool Value::operator==(const Value & other) const
   if (other.isNull() != isNull())
     return false;
 
-  auto ret = engine()->invoke(container->eq, { value, other.value });
+  auto ret = engine()->invoke(typeinfo->eq, { value, other.value });
   bool result = ret.toBool();
   engine()->destroy(ret);
   return result;
@@ -95,13 +95,13 @@ bool Value::operator==(const Value & other) const
 TemporaryValueWrap::TemporaryValueWrap(const std::shared_ptr<ValueTypeInfo> & c, const script::Value & val)
   : Value()
 {
-  container = c;
+  typeinfo = c;
   value = val;
 }
 
 TemporaryValueWrap::~TemporaryValueWrap()
 {
-  container = nullptr;
+  typeinfo = nullptr;
   value = script::Value{};
 }
 

@@ -31,8 +31,8 @@ struct Value
   Value(const std::shared_ptr<ValueTypeInfo> & c, const script::Value & val);
   ~Value();
 
-  inline bool isValid() const { return container != nullptr; }
-  inline bool isNull() const { return container == nullptr; }
+  inline bool isValid() const { return typeinfo != nullptr; }
+  inline bool isNull() const { return typeinfo == nullptr; }
   script::Engine *engine() const;
 
   script::Value release();
@@ -40,7 +40,7 @@ struct Value
   Value & operator=(const Value & other);
   bool operator==(const Value & other) const;
 
-  std::shared_ptr<ValueTypeInfo> container;
+  std::shared_ptr<ValueTypeInfo> typeinfo;
   script::Value value;
 };
 

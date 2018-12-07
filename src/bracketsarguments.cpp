@@ -7,10 +7,13 @@
 #include "dex/variant.h"
 
 #include <script/classbuilder.h>
+#include <script/constructorbuilder.h>
+#include <script/destructorbuilder.h>
 #include <script/engine.h>
 #include <script/functionbuilder.h>
 #include <script/interpreter/executioncontext.h>
 #include <script/namespace.h>
+#include <script/operatorbuilder.h>
 #include <script/value.h>
 #include <script/private/value_p.h>
 
@@ -31,10 +34,10 @@ static BracketsArguments::Iterator & iterator_cast(const script::Value & val)
 
 static script::Value make_iterator(script::Engine *e, const BracketsArguments::Iterator & it)
 {
-  auto ret = e->uninitialized(BracketsArguments::type_info().iterator_type);
-  new (ret.memory()) BracketsArguments::Iterator{ it };
-  ret.impl()->remove_uninitialized_flag();
-  return ret;
+  return e->construct(BracketsArguments::type_info().iterator_type, [&it](script::Value &ret) -> void {
+    new (ret.getMemory(script::passkey{})) BracketsArguments::Iterator{ it };
+  });
+
 }
 
 namespace callbacks
@@ -42,19 +45,20 @@ namespace callbacks
 
 static script::Value ctor(script::FunctionCall *c)
 {
-  new (c->thisObject().memory()) BracketsArguments{};
+  new (c->thisObject().getMemory(script::passkey{})) BracketsArguments{};
   return c->thisObject();
 }
 
 static script::Value copy_ctor(script::FunctionCall *c)
 {
-  new (c->thisObject().memory()) BracketsArguments{ bracket_arguments_cast(c->arg(0)) };
+  new (c->thisObject().getMemory(script::passkey{})) BracketsArguments{ bracket_arguments_cast(c->arg(1)) };
   return c->thisObject();
 }
 
 static script::Value dtor(script::FunctionCall *c)
 {
   (static_cast<BracketsArguments*>(c->thisObject().memory()))->~BracketsArguments();
+  c->thisObject().releaseMemory(script::passkey{});
   return script::Value::Void;
 }
 
@@ -101,14 +105,14 @@ namespace iterator
 
 static script::Value ctor(script::FunctionCall *c)
 {
-  new (c->thisObject().memory()) BracketsArguments::Iterator{};
+  new (c->thisObject().getMemory(script::passkey{})) BracketsArguments::Iterator{};
   return c->thisObject();
 }
 
 static script::Value copy_ctor(script::FunctionCall *c)
 {
-  BracketsArguments::Iterator & other = iterator_cast(c->arg(0));
-  new (c->thisObject().memory()) BracketsArguments::Iterator{other};
+  BracketsArguments::Iterator & other = iterator_cast(c->arg(1));
+  new (c->thisObject().getMemory(script::passkey{})) BracketsArguments::Iterator{ other };
   return c->thisObject();
 }
 
@@ -116,6 +120,7 @@ static script::Value dtor(script::FunctionCall *c)
 {
   using It = BracketsArguments::Iterator;
   (static_cast<It*>(c->thisObject().memory()))->~It();
+  c->thisObject().releaseMemory(script::passkey{});
   return script::Value::Void;
 }
 
@@ -209,9 +214,10 @@ QVariant BracketsArguments::get(int i) const
 
 script::Value BracketsArguments::expose(script::Engine *e) const
 {
-  auto ret = e->uninitialized(BracketsArguments::type_info().type);
-  new (ret.memory()) BracketsArguments{ *this };
-  ret.impl()->remove_uninitialized_flag();
+  script::Value ret = e->construct(BracketsArguments::type_info().type, [this](script::Value & ret) -> void {
+    new (ret.getMemory(script::passkey{})) BracketsArguments{ *this };
+  });
+  e->manage(ret);
   return ret;
 }
 
@@ -219,48 +225,48 @@ static void register_iterator_type(script::Class brackets)
 {
   using namespace script;
 
-  Class it = brackets.NestedClass("Iterator").setFinal().get();
+  Class it = brackets.newNestedClass("Iterator").setFinal().get();
   BracketsArguments::type_info().iterator_type = it.id();
 
-  it.Constructor(callbacks::iterator::ctor).create();
-  it.Constructor(callbacks::iterator::copy_ctor).params(Type::cref(it.id())).create();
-  it.newDestructor(callbacks::iterator::dtor);
+  it.newConstructor(callbacks::iterator::ctor).create();
+  it.newConstructor(callbacks::iterator::copy_ctor).params(Type::cref(it.id())).create();
+  it.newDestructor(callbacks::iterator::dtor).create();
 
-  it.Method("key", callbacks::iterator::key)
+  it.newMethod("key", callbacks::iterator::key)
     .setConst()
     .returns(Type::String)
     .create();
 
-  it.Method("value", callbacks::iterator::value)
+  it.newMethod("value", callbacks::iterator::value)
     .setConst()
     .returns(Variant::type_info().type)
     .create();
 
-  it.Operation(EqualOperator, callbacks::iterator::eq)
+  it.newOperator(EqualOperator, callbacks::iterator::eq)
     .setConst()
     .params(Type::cref(it.id()))
     .returns(Type::Boolean)
     .create();
 
-  it.Operation(InequalOperator, callbacks::iterator::neq)
+  it.newOperator(InequalOperator, callbacks::iterator::neq)
     .setConst()
     .params(Type::cref(it.id()))
     .returns(Type::Boolean)
     .create();
 
-  it.Operation(PreIncrementOperator, callbacks::iterator::pre_incr)
+  it.newOperator(PreIncrementOperator, callbacks::iterator::pre_incr)
     .returns(Type::ref(it.id()))
     .create();
 
-  it.Operation(PostIncrementOperator, callbacks::iterator::post_incr)
+  it.newOperator(PostIncrementOperator, callbacks::iterator::post_incr)
     .returns(it.id())
     .create();
 
-  it.Operation(PreDecrementOperator, callbacks::iterator::pre_decr)
+  it.newOperator(PreDecrementOperator, callbacks::iterator::pre_decr)
     .returns(Type::ref(it.id()))
     .create();
 
-  it.Operation(PostDecrementOperator, callbacks::iterator::post_decr)
+  it.newOperator(PostDecrementOperator, callbacks::iterator::post_decr)
     .returns(it.id())
     .create();
 }
@@ -269,41 +275,41 @@ void BracketsArguments::register_type(script::Namespace ns)
 {
   using namespace script;
 
-  Class c = ns.Class("BracketArguments").get();
+  Class c = ns.newClass("BracketArguments").get();
   type_info().type = c.id();
   register_iterator_type(c);
 
-  c.Constructor(callbacks::ctor).create();
-  c.Constructor(callbacks::copy_ctor).params(Type::cref(c.id())).create();
-  c.newDestructor(callbacks::dtor);
+  c.newConstructor(callbacks::ctor).create();
+  c.newConstructor(callbacks::copy_ctor).params(Type::cref(c.id())).create();
+  c.newDestructor(callbacks::dtor).create();
 
-  c.Method("contains", callbacks::contains)
+  c.newMethod("contains", callbacks::contains)
     .setConst()
     .returns(Type::Boolean)
     .params(Type::cref(Type::String))
     .create();
 
-  c.Method("count", callbacks::count)
+  c.newMethod("count", callbacks::count)
     .setConst()
     .returns(Type::Int)
     .create();
 
-  c.Method("at", callbacks::at)
+  c.newMethod("at", callbacks::at)
     .setConst()
     .returns(type_info().iterator_type)
     .create();
 
-  c.Method("begin", callbacks::begin)
+  c.newMethod("begin", callbacks::begin)
     .setConst()
     .returns(type_info().iterator_type)
     .create();
 
-  c.Method("end", callbacks::end)
+  c.newMethod("end", callbacks::end)
     .setConst()
     .returns(type_info().iterator_type)
     .create();
 
-  c.Method("value", callbacks::value)
+  c.newMethod("value", callbacks::value)
     .setConst()
     .returns(Variant::type_info().type)
     .params(Type::cref(Type::String))

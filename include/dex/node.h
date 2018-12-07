@@ -52,7 +52,7 @@ protected:
   script::Value mValue;
 };
 
-
+// Holds a Ref<Node>
 class NodeRef
 {
 public:
@@ -61,8 +61,7 @@ public:
   NodeRef(NodeRef && other);
   ~NodeRef();
 
-  NodeRef(const script::Value & val);
-  NodeRef(const Node & n);
+  NodeRef(script::Value && val);
 
   inline bool isNull() const { return mValue.isNull(); }
 

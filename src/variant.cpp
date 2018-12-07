@@ -6,11 +6,13 @@
 
 #include <script/class.h>
 #include <script/classbuilder.h>
+#include <script/constructorbuilder.h>
+#include <script/destructorbuilder.h>
 #include <script/engine.h>
 #include <script/functionbuilder.h>
 #include <script/namespace.h>
+#include <script/operatorbuilder.h>
 #include <script/interpreter/executioncontext.h>
-#include <script/private/value_p.h>
 
 namespace dex
 {
@@ -22,37 +24,37 @@ namespace callbacks
 
 static script::Value ctor(script::FunctionCall *c)
 {
-  new (c->thisObject().memory()) QVariant{};
+  c->thisObject().setVariant(QVariant{});
   return c->thisObject();
 }
 
 static script::Value copy_ctor(script::FunctionCall *c)
 {
-  new (c->thisObject().memory()) QVariant{ Variant::get(c->arg(1)) };
+  c->thisObject().setVariant(QVariant{ Variant::get(c->arg(1)) });
   return c->thisObject();
 }
 
 static script::Value dtor(script::FunctionCall *c)
 {
-  (static_cast<QVariant*>(c->thisObject().memory()))->~QVariant();
+  c->thisObject().clear(script::passkey{});
   return script::Value::Void;
 }
 
 static script::Value ctor_bool(script::FunctionCall *c)
 {
-  new (c->thisObject().memory()) QVariant{c->arg(0).toBool()};
+  c->thisObject().setVariant(QVariant{c->arg(1).toBool()});
   return c->thisObject();
 }
 
 static script::Value ctor_int(script::FunctionCall *c)
 {
-  new (c->thisObject().memory()) QVariant{ c->arg(0).toInt() };
+  c->thisObject().setVariant(QVariant{ c->arg(1).toInt() });
   return c->thisObject();
 }
 
 static script::Value ctor_string(script::FunctionCall *c)
 {
-  new (c->thisObject().memory()) QVariant{ c->arg(0).toString() };
+  c->thisObject().setVariant(QVariant{ c->arg(1).toString() });
   return c->thisObject();
 }
 
@@ -107,48 +109,48 @@ void Variant::register_type(script::Namespace ns)
 {
   using namespace script;
 
-  Class variant = ns.Class("Variant").setFinal(true).get();
+  Class variant = ns.newClass("Variant").setFinal(true).get();
   type_info().type = variant.id();
 
-  variant.Constructor(callbacks::ctor).create();
-  variant.Constructor(callbacks::copy_ctor).params(Type::cref(variant.id())).create();
-  variant.newDestructor(callbacks::dtor);
+  variant.newConstructor(callbacks::ctor).create();
+  variant.newConstructor(callbacks::copy_ctor).params(Type::cref(variant.id())).create();
+  variant.newDestructor(callbacks::dtor).create();
 
-  variant.Constructor(callbacks::ctor_bool).params(Type::Boolean).create();
-  variant.Constructor(callbacks::ctor_int).params(Type::Int).create();
-  variant.Constructor(callbacks::ctor_string).params(Type::String).create();
+  variant.newConstructor(callbacks::ctor_bool).params(Type::Boolean).create();
+  variant.newConstructor(callbacks::ctor_int).params(Type::Int).create();
+  variant.newConstructor(callbacks::ctor_string).params(Type::String).create();
 
-  variant.Method("isBool", callbacks::is_bool)
+  variant.newMethod("isBool", callbacks::is_bool)
     .setConst()
     .returns(Type::Boolean)
     .create();
 
-  variant.Method("isInt", callbacks::is_int)
+  variant.newMethod("isInt", callbacks::is_int)
     .setConst()
     .returns(Type::Boolean)
     .create();
 
-  variant.Method("isString", callbacks::is_string)
+  variant.newMethod("isString", callbacks::is_string)
     .setConst()
     .returns(Type::Boolean)
     .create();
 
-  variant.Method("toBool", callbacks::to_bool)
+  variant.newMethod("toBool", callbacks::to_bool)
     .setConst()
     .returns(Type::Boolean)
     .create();
 
-  variant.Method("toInt", callbacks::to_int)
+  variant.newMethod("toInt", callbacks::to_int)
     .setConst()
     .returns(Type::Int)
     .create();
 
-  variant.Method("toString", callbacks::to_string)
+  variant.newMethod("toString", callbacks::to_string)
     .setConst()
     .returns(Type::String)
     .create();
 
-  variant.Operation(AssignmentOperator, callbacks::assign)
+  variant.newOperator(AssignmentOperator, callbacks::assign)
     .returns(Type::ref(variant.id()))
     .params(Type::cref(variant.id()))
     .create();
@@ -156,15 +158,14 @@ void Variant::register_type(script::Namespace ns)
 
 script::Value Variant::create(script::Engine *e, const QVariant & value)
 {
-  script::Value result = e->uninitialized(type_info().type);
-  new (result.memory()) QVariant{value};
-  result.impl()->remove_uninitialized_flag();
-  return result;
+  return e->construct(type_info().type, [&value](script::Value &ret) -> void {
+    ret.setVariant(value);
+  });
 }
 
-QVariant & Variant::get(const script::Value & val)
+QVariant & Variant::get(script::Value val)
 {
-  return *static_cast<QVariant*>(val.memory());
+  return val.toVariant();
 }
 
 } // namespace dex

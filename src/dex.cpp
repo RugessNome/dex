@@ -76,16 +76,16 @@ Application::Application(int & argc, char **argv)
   dex::register_ref_template(mEngine.rootNamespace());
   dex::register_list_template(mEngine.rootNamespace());
 
-  mEngine.rootNamespace().Function("print", callbacks::print_int)
+  mEngine.rootNamespace().newFunction("print", callbacks::print_int)
     .params(script::Type::Int).create();
 
-  mEngine.rootNamespace().Function("print", callbacks::print_bool)
+  mEngine.rootNamespace().newFunction("print", callbacks::print_bool)
     .params(script::Type::Boolean).create();
 
-  mEngine.rootNamespace().Function("print", callbacks::print_double)
+  mEngine.rootNamespace().newFunction("print", callbacks::print_double)
     .params(script::Type::Double).create();
 
-  mEngine.rootNamespace().Function("print", callbacks::print_string)
+  mEngine.rootNamespace().newFunction("print", callbacks::print_string)
     .params(script::Type::cref(script::Type::String)).create();
 
   dex::Variant::register_type(mEngine.rootNamespace());
@@ -126,6 +126,7 @@ int Application::run()
     setup();
     process(mInputDirectory.absolutePath());
     output(mOutputFormat, mOutputDirectory.absolutePath());
+    mState.destroy();
   }
   catch (...)
   {
@@ -146,7 +147,7 @@ void Application::setup()
   }
 
   scriptEngine()->setScriptExtension(".dex");
-  scriptEngine()->setSearchDirectory(profileDir().absolutePath().toUtf8().data());
+  scriptEngine()->setSearchDirectory(std::string{ profileDir().absolutePath().toUtf8().data() });
 
   register_span_types();
   dex::BracketsArguments::register_type(scriptEngine()->rootNamespace());

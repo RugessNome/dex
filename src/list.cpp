@@ -7,10 +7,14 @@
 #include "dex/value.h"
 
 #include <script/classtemplate.h>
+#include <script/constructorbuilder.h>
+#include <script/templatebuilder.h>
 #include <script/classtemplateinstancebuilder.h>
+#include <script/destructorbuilder.h>
 #include <script/engine.h>
 #include <script/functionbuilder.h>
 #include <script/namelookup.h>
+#include <script/operatorbuilder.h>
 #include <script/overloadresolution.h>
 #include <script/private/engine_p.h>
 #include <script/private/value_p.h>
@@ -22,12 +26,11 @@
 namespace dex
 {
 
-static script::Value make_list(const QList<Value> & val, const script::Type & list_type, script::Engine *e)
+static script::Value make_list(const QList<Value> & list, const script::Type & list_type, script::Engine *e)
 {
-  script::Value ret = e->uninitialized(list_type);
-  new (ret.memory()) QList<Value>{val};
-  ret.impl()->type = ret.impl()->type.withoutFlag(script::Type::UninitializedFlag);
-  return ret;
+  return e->construct(list_type, [list](script::Value & v) -> void {
+    new (v.memory()) QList<Value>{list};
+  });
 }
 
 QList<dex::Value> & list_cast(const script::Value & val)
@@ -42,7 +45,7 @@ namespace callbacks
 static script::Value default_ctor(script::FunctionCall *c)
 {
   using namespace script;
-  new (&c->thisObject().impl()->data.memory) QList<Value>{};
+  new (c->thisObject().getMemory(script::passkey{})) QList<Value>{};
   return c->thisObject();
 }
 
@@ -51,7 +54,7 @@ static script::Value copy_ctor(script::FunctionCall *c)
 {
   using namespace script;
   QList<Value> & other = list_cast(c->arg(1));
-  new (&c->thisObject().impl()->data.memory) QList<dex::Value>{other};
+  new (c->thisObject().getMemory(script::passkey{})) QList<dex::Value>{other};
   return c->thisObject();
 }
 
@@ -61,7 +64,7 @@ static script::Value dtor(script::FunctionCall *c)
   using namespace script;
   QList<Value> & self = list_cast(c->thisObject());
   self.~QList<Value>();
-  std::memset(&c->thisObject().impl()->data.memory, 0, sizeof(script::ValueImpl::BuiltIn));
+  c->thisObject().releaseMemory(script::passkey{});
   return script::Value::Void;
 }
 
@@ -70,8 +73,8 @@ static script::Value dtor(script::FunctionCall *c)
 static script::Value append_value(script::FunctionCall *c)
 {
   QList<Value> & self = list_cast(c->thisObject());
-  auto container = ValueTypeInfo::get(c->callee());
-  self.append(Value{ container, c->arg(1) });
+  auto typeinfo = ValueTypeInfo::get(c->callee());
+  self.append(Value{ typeinfo, c->arg(1) });
   return script::Value::Void;
 }
 
@@ -271,8 +274,8 @@ static script::Value pop_front(script::FunctionCall *c)
 static script::Value prepend(script::FunctionCall *c)
 {
   QList<Value> & self = list_cast(c->thisObject());
-  auto container = ValueTypeInfo::get(c->callee());
-  self.prepend(Value{ container, c->arg(1) });
+  auto typeinfo = ValueTypeInfo::get(c->callee());
+  self.prepend(Value{ typeinfo, c->arg(1) });
   return script::Value::Void;
 }
 
@@ -409,8 +412,8 @@ static script::Value value(script::FunctionCall *c)
   Value ret = self.value(i);
   if (ret.isValid())
     return ret.release();
-  auto container = ValueTypeInfo::get(c->callee());
-  return c->engine()->construct(container->element_type, {});
+  auto typeinfo = ValueTypeInfo::get(c->callee());
+  return c->engine()->construct(typeinfo->element_type, {});
 }
 
 // T value(int i, const T &defaultValue) const
@@ -527,29 +530,29 @@ script::Class list_template_instantiate(script::ClassTemplateInstanceBuilder & b
   Class list = builder.get();
 
   // QList<T>();
-  list.Constructor(callbacks::default_ctor).create();
+  list.newConstructor(callbacks::default_ctor).create();
   // QList<T>(const QList<T> &);
-  list.Constructor(callbacks::copy_ctor)
+  list.newConstructor(callbacks::copy_ctor)
     .params(Type::cref(list.id())).create();
   // ~QList<T>();
-  list.newDestructor(callbacks::dtor);
+  list.newDestructor(callbacks::dtor).create();
 
   // void append(const T &value)
-  list.Method("append", callbacks::append_value)
+  list.newMethod("append", callbacks::append_value)
     .params(Type::cref(element_type)).create();
   // void append(const QList<T> &value)
-  list.Method("append", callbacks::append_list)
+  list.newMethod("append", callbacks::append_list)
     .params(Type::cref(list.id())).create();
   // const T & at(int i) const
-  list.Method("at", callbacks::at)
+  list.newMethod("at", callbacks::at)
     .setConst()
     .returns(Type::cref(element_type))
     .params(Type::Int).create();
   // T & back()
-  list.Method("back", callbacks::back)
+  list.newMethod("back", callbacks::back)
     .returns(Type::ref(element_type)).create();
   // const T & back() const
-  list.Method("back", callbacks::back)
+  list.newMethod("back", callbacks::back)
     .setConst()
     .returns(Type::cref(element_type)).create();
   // iterator begin()
@@ -561,29 +564,29 @@ script::Class list_template_instantiate(script::ClassTemplateInstanceBuilder & b
   // const_iterator cend() const
   /// TODO !!!
   // void clear()
-  list.Method("clear", callbacks::clear).create();
+  list.newMethod("clear", callbacks::clear).create();
   // const_iterator constBegin() const
   /// TODO !!!
   // const_iterator constEnd() const
   /// TODO !!!
   // const T & constFirst() const
-  list.Method("constFirst", callbacks::first)
+  list.newMethod("constFirst", callbacks::first)
     .returns(Type::cref(element_type)).create();
   // const T & constLast() const
-  list.Method("constLast", callbacks::last)
+  list.newMethod("constLast", callbacks::last)
     .returns(Type::cref(element_type)).create();
   // bool contains(const T &value) const
-  list.Method("contains", callbacks::contains)
+  list.newMethod("contains", callbacks::contains)
     .setConst()
     .returns(Type::Boolean)
     .params(Type::cref(element_type)).create();
   // int count(const T &value) const
-  list.Method("contains", callbacks::count_element)
+  list.newMethod("contains", callbacks::count_element)
     .setConst()
     .returns(Type::Int)
     .params(Type::cref(element_type)).create();
   // int count() const
-  list.Method("count", callbacks::count)
+  list.newMethod("count", callbacks::count)
     .setConst()
     .returns(Type::Int).create();
   // const_reverse_iterator crbegin() const
@@ -591,7 +594,7 @@ script::Class list_template_instantiate(script::ClassTemplateInstanceBuilder & b
   // const_reverse_iterator crend() const
   /// TODO !!!
   // bool empty() const
-  list.Method("empty", callbacks::empty)
+  list.newMethod("empty", callbacks::empty)
     .setConst()
     .returns(Type::Boolean).create();
   // iterator end()
@@ -599,7 +602,7 @@ script::Class list_template_instantiate(script::ClassTemplateInstanceBuilder & b
   // const_iterator end() const
   /// TODO !!!
   // bool endsWith(const T &value) const
-  list.Method("endsWith", callbacks::ends_with)
+  list.newMethod("endsWith", callbacks::ends_with)
     .setConst()
     .returns(Type::Boolean)
     .params(Type::cref(element_type)).create();
@@ -608,89 +611,89 @@ script::Class list_template_instantiate(script::ClassTemplateInstanceBuilder & b
   // iterator erase(iterator begin, iterator end)
   /// TODO !!!
   // T & first()
-  list.Method("first", callbacks::first)
+  list.newMethod("first", callbacks::first)
     .returns(Type::ref(element_type)).create();
   // const T & first() const
-  list.Method("first", callbacks::first)
+  list.newMethod("first", callbacks::first)
     .setConst()
     .returns(Type::cref(element_type)).create();
   // T & front()
-  list.Method("front", callbacks::first)
+  list.newMethod("front", callbacks::first)
     .returns(Type::ref(element_type)).create();
   // const T & front() const
-  list.Method("front", callbacks::first)
+  list.newMethod("front", callbacks::first)
     .setConst()
     .returns(Type::cref(element_type)).create();
   // int indexOf(const T &value, int from = 0) const
-  list.Method("indexOf", callbacks::index_of)
+  list.newMethod("indexOf", callbacks::index_of)
     .setConst()
     .returns(Type::Int)
     .params(Type::cref(element_type), Type::Int).create();
   // void insert(int i, const T &value)
-  list.Method("insert", callbacks::insert)
+  list.newMethod("insert", callbacks::insert)
     .params(Type::Int, Type::cref(element_type)).create();
   // iterator insert(iterator before, const T &value)
   /// l.add_fun<QList<T>::iterator, QList<T>::iterator, const T &, &QList<T>::insert>("insert");
   // bool isEmpty() const
-  list.Method("isEmpty", callbacks::empty)
+  list.newMethod("isEmpty", callbacks::empty)
     .setConst()
     .returns(Type::Boolean).create();
   // T & last()
-  list.Method("last", callbacks::last)
+  list.newMethod("last", callbacks::last)
     .returns(Type::ref(element_type)).create();
   // const T & last() const
-  list.Method("last", callbacks::last)
+  list.newMethod("last", callbacks::last)
     .setConst()
     .returns(Type::cref(element_type)).create();
   // int lastIndexOf(const T &value, int from = -1) const
-  list.Method("lastIndexOf", callbacks::last_index_of)
+  list.newMethod("lastIndexOf", callbacks::last_index_of)
     .setConst()
     .returns(Type::Int)
     .params(Type::cref(element_type), Type::Int).create();
   // int length() const
-  list.Method("length", callbacks::count)
+  list.newMethod("length", callbacks::count)
     .setConst()
     .returns(Type::Int).create();
   // QList<T> mid(int pos, int length = -1) const
-  list.Method("mid", callbacks::mid)
+  list.newMethod("mid", callbacks::mid)
     .setConst()
     .returns(list.id())
     .params(Type::Int, Type::Int).create();
   // void move(int from, int to)
-  list.Method("move", callbacks::move)
+  list.newMethod("move", callbacks::move)
     .params(Type::Int, Type::Int).create();
   // void pop_back()
-  list.Method("pop_back", callbacks::pop_back).create();
+  list.newMethod("pop_back", callbacks::pop_back).create();
   // void pop_front()
-  list.Method("pop_front", callbacks::pop_front).create();
+  list.newMethod("pop_front", callbacks::pop_front).create();
   // void prepend(const T &value)
-  list.Method("prepend", callbacks::prepend)
+  list.newMethod("prepend", callbacks::prepend)
     .params(Type::cref(element_type)).create();
   // void push_back(const T &value)
-  list.Method("push_back", callbacks::append_value)
+  list.newMethod("push_back", callbacks::append_value)
     .params(Type::cref(element_type)).create();
   // void push_front(const T &value)
-  list.Method("push_front", callbacks::prepend)
+  list.newMethod("push_front", callbacks::prepend)
     .params(Type::cref(element_type)).create();
   // reverse_iterator rbegin()
   /// TODO !!!
   // const_reverse_iterator rbegin() const
   /// TODO !!!
   // int removeAll(const T &value)
-  list.Method("removeAll", callbacks::remove_all)
+  list.newMethod("removeAll", callbacks::remove_all)
     .returns(Type::Int)
     .params(Type::cref(element_type)).create();
   // void removeAt(int i)
-  list.Method("removeAt", callbacks::remove_at)
+  list.newMethod("removeAt", callbacks::remove_at)
     .params(Type::Int).create();
   // void removeFirst()
-  list.Method("removeFirst", callbacks::remove_first)
+  list.newMethod("removeFirst", callbacks::remove_first)
     .params(Type::Int, Type::Int).create();
   // void removeLast()
-  list.Method("removeLast", callbacks::remove_last)
+  list.newMethod("removeLast", callbacks::remove_last)
     .params(Type::Int, Type::Int).create();
   // bool removeOne(const T &value)
-  list.Method("removeOne", callbacks::remove_one)
+  list.newMethod("removeOne", callbacks::remove_one)
     .returns(Type::Boolean)
     .params(Type::cref(element_type)).create();
   // reverse_iterator rend()
@@ -698,35 +701,35 @@ script::Class list_template_instantiate(script::ClassTemplateInstanceBuilder & b
   // const_reverse_iterator rend() const
   /// TODO !!!
   // void replace(int i, const T &value)
-  list.Method("replace", callbacks::replace)
+  list.newMethod("replace", callbacks::replace)
     .params(Type::Int, Type::cref(element_type)).create();
   // void reserve(int alloc)
-  list.Method("reserve", callbacks::reserve)
+  list.newMethod("reserve", callbacks::reserve)
     .params(Type::Int).create();
   // int size() const
-  list.Method("size", callbacks::count)
+  list.newMethod("size", callbacks::count)
     .setConst()
     .returns(Type::Int).create();
   // bool startsWith(const T &value) const
-  list.Method("startsWith", callbacks::starts_with)
+  list.newMethod("startsWith", callbacks::starts_with)
     .setConst()
     .returns(Type::Boolean)
     .params(Type::cref(element_type)).create();
   // void swap(QList<T> &other)
-  list.Method("swap", callbacks::swap_list)
+  list.newMethod("swap", callbacks::swap_list)
     .params(Type::ref(list.id())).create();
   // void swap(int i, int j)
-  list.Method("swap", callbacks::swap_element)
+  list.newMethod("swap", callbacks::swap_element)
     .params(Type::Int, Type::Int).create();
   // T takeAt(int i)
-  list.Method("takeAt", callbacks::take_at)
+  list.newMethod("takeAt", callbacks::take_at)
     .returns(element_type)
     .params(Type::Int).create();
   // T takeFirst()
-  list.Method("takeFirst", callbacks::take_first)
+  list.newMethod("takeFirst", callbacks::take_first)
     .returns(element_type).create();
   // T takeLast()
-  list.Method("takeLast", callbacks::take_last)
+  list.newMethod("takeLast", callbacks::take_last)
     .returns(element_type).create();
   // QSet<T> toSet() const
   /// TODO !!!
@@ -735,33 +738,33 @@ script::Class list_template_instantiate(script::ClassTemplateInstanceBuilder & b
   // QVector<T> toVector() const
   /// TODO !!!
   // T value(int i) const
-  list.Method("value", callbacks::value)
+  list.newMethod("value", callbacks::value)
     .setConst()
     .returns(element_type)
     .params(Type::Int).create();
   // T value(int i, const T &defaultValue) const
-  list.Method("value", callbacks::value_with_default)
+  list.newMethod("value", callbacks::value_with_default)
     .setConst()
     .returns(element_type)
     .params(Type::Int, Type::cref(element_type)).create();
 
 
   // bool operator!=(const QList<T> &other) const
-  list.Operation(InequalOperator, callbacks::op_neq)
+  list.newOperator(InequalOperator, callbacks::op_neq)
     .setConst()
     .returns(Type::Boolean)
     .params(Type::cref(list.id())).create();
   // QList<T> operator+(const QList<T> &other) const
-  list.Operation(AdditionOperator, callbacks::op_add)
+  list.newOperator(AdditionOperator, callbacks::op_add)
     .setConst()
     .returns(list.id())
     .params(Type::cref(list.id())).create();
   // QList<T> & operator+=(const QList<T> &other)
-  list.Operation(AdditionAssignmentOperator, callbacks::op_add_assign)
+  list.newOperator(AdditionAssignmentOperator, callbacks::op_add_assign)
     .returns(Type::ref(list.id()))
     .params(Type::cref(list.id())).create();
   // QList<T> & operator+=(const T &value)
-  list.Operation(AdditionAssignmentOperator, callbacks::op_add_assign_value)
+  list.newOperator(AdditionAssignmentOperator, callbacks::op_add_assign_value)
     .returns(Type::ref(list.id()))
     .params(Type::cref(element_type)).create();
   // QList<T> & operator<<(const QList<T> &other)
@@ -769,22 +772,22 @@ script::Class list_template_instantiate(script::ClassTemplateInstanceBuilder & b
   // QList<T> & operator<<(const T &value)
   /// TODO !!!
   // QList<T> & operator=(const QList<T> &other)
-  list.Operation(AssignmentOperator, callbacks::op_assign)
+  list.newOperator(AssignmentOperator, callbacks::op_assign)
     .returns(Type::ref(list.id()))
     .params(Type::cref(list.id())).create();
   // QList & operator=(QList<T> &&other)
   /// TODO !!!
   // bool operator==(const QList<T> &other) const
-  list.Operation(EqualOperator, callbacks::op_eq)
+  list.newOperator(EqualOperator, callbacks::op_eq)
     .setConst()
     .returns(Type::Boolean)
     .params(Type::cref(list.id())).create();
   // T & operator[](int i)
-  list.Operation(SubscriptOperator, callbacks::op_subscript)
+  list.newOperator(SubscriptOperator, callbacks::op_subscript)
     .returns(Type::ref(element_type))
     .params(Type::Int).create();
   // const T & operator[](int i) const
-  list.Operation(SubscriptOperator, callbacks::at)
+  list.newOperator(SubscriptOperator, callbacks::at)
     .setConst()
     .returns(Type::cref(element_type))
     .params(Type::Int).create();
@@ -800,7 +803,7 @@ void register_list_template(script::Namespace n)
     TemplateParameter{ TemplateParameter::TypeParameter{}, "T" },
   };
 
-  ClassTemplate list_template = Symbol{ n }.ClassTemplate("List")
+  ClassTemplate list_template = Symbol{ n }.newClassTemplate("List")
     .setParams(std::move(params))
     .setScope(Scope{ n })
     .setCallback(list_template_instantiate)

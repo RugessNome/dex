@@ -5,6 +5,8 @@
 #include "dex/commandspan.h"
 
 #include <script/classbuilder.h>
+#include <script/constructorbuilder.h>
+#include <script/destructorbuilder.h>
 #include <script/engine.h>
 #include <script/functionbuilder.h>
 #include <script/namespace.h>
@@ -53,16 +55,16 @@ void CommandSpan::register_span_types(script::Namespace ns)
 {
   using namespace script;
 
-  Class Span = ns.Class("Span").get();
-  Class Word = Span.NestedClass("Word").setBase(Span).get();;
-  Class Line = Span.NestedClass("Line").setBase(Span).get();;
-  Class Paragraph = Span.NestedClass("Paragraph").setBase(Span).get();;
+  Class Span = ns.newClass("Span").get();
+  Class Word = Span.newNestedClass("Word").setBase(Span).get();;
+  Class Line = Span.newNestedClass("Line").setBase(Span).get();;
+  Class Paragraph = Span.newNestedClass("Paragraph").setBase(Span).get();;
 
   for (Class c : { Span, Word, Line, Paragraph })
   {
-    c.Constructor(callbacks::dummy).create();
-    c.Constructor(callbacks::dummy).params(Type::cref(c.id())).create();
-    c.newDestructor(callbacks::dummy);
+    c.newConstructor(callbacks::dummy).create();
+    c.newConstructor(callbacks::dummy).params(Type::cref(c.id())).create();
+    c.newDestructor(callbacks::dummy).create();
   }
 
   dex::CommandSpan::type_info().span_type = Span.id();
@@ -73,9 +75,7 @@ void CommandSpan::register_span_types(script::Namespace ns)
 
 script::Value CommandSpan::expose(Value val, script::Engine *e)
 {
-  auto ret = e->uninitialized(getType(val));
-  ret.impl()->remove_uninitialized_flag();
-  return ret;
+  return e->construct(getType(val), [](script::Value &) -> void {});
 }
 
 } // namespace dex

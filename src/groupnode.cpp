@@ -39,7 +39,7 @@ NodeRef GroupNode::at(int n) const
   script::Value index = e->newInt(n);
   script::Value result = e->call(type_info().at, { mValue, index });
   e->destroy(index);
-  return NodeRef{ result };
+  return NodeRef{ std::move(result) };
 }
 
 } // namespace dex
