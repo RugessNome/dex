@@ -151,9 +151,9 @@ void Application::setup()
 
   register_span_types();
   dex::BracketsArguments::register_type(scriptEngine()->rootNamespace());
-  load_nodes();
   load_state();
-  
+  load_nodes();
+
   mState = dex::State::create(scriptEngine());
   scriptEngine()->rootNamespace().addValue("state", mState);
   scriptEngine()->manage(mState);
@@ -305,15 +305,6 @@ void Application::load_nodes()
 {
   using namespace script;
 
-  Script s = mEngine.newScript(SourceFile{ profileDir().absoluteFilePath("node.dex").toUtf8().data() });
-  if (!s.compile())
-  {
-    for (const auto &m : s.messages())
-      qDebug() << m.to_string().data();
-
-    return;
-  }
-
   typedef void(*ClassActionCallback)(Application&, const script::Class&);
   QMap<std::string, ClassActionCallback> actions;
   actions["Node"] = register_node_type;
@@ -322,19 +313,22 @@ void Application::load_nodes()
   actions["GroupNode"] = register_groupnode_type;
   actions["WordNode"] = register_word_node_type;
 
-  for (const auto & c : s.classes())
+  for (const auto & sc : scriptEngine()->scripts())
   {
-    if (actions.contains(c.name()))
+    for (const auto & c : sc.classes())
     {
-      auto action = actions.value(c.name(), nullptr);
-      actions.remove(c.name());
-      action(*this, c);
+      if (actions.contains(c.name()))
+      {
+        auto action = actions.value(c.name(), nullptr);
+        actions.remove(c.name());
+        action(*this, c);
+      }
     }
   }
 
   if (!actions.isEmpty())
   {
-    qDebug() << "The following required types could not be found :";
+    qDebug() << "The following required types could not be found after loading State class :";
     for (const auto k : actions.keys())
       qDebug() << k.data();
     throw std::runtime_error{ "Some required types could not be found" };
@@ -389,27 +383,7 @@ void Application::load_state()
 
 void Application::process(const QString & dirPath)
 {
-  dex::Parser parser{ mRootEnvironment };
-
-  if (!profileDir().exists("parser.dex"))
-  {
-    qDebug() << "Profile is missing parser.dex";
-    throw std::runtime_error{ "Profile is missing parser.dex" };
-  }
-
-  const QString filepath = profileDir().filePath("parser.dex");
-
-  script::Script parser_script = scriptEngine()->newScript(script::SourceFile{ filepath.toUtf8().data() });
-  if (!parser_script.compile())
-  {
-    for (const auto &m : parser_script.messages())
-      qDebug() << m.to_string().data();
-
-    return;
-  }
-
-  parser.setup(parser_script);
-
+  dex::Parser parser{ mState, mRootEnvironment };
   QDir dir{ dirPath };
   process(parser, dir);
 }

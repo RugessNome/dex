@@ -218,39 +218,10 @@ Token Lexer::produce(Token::Kind k, int offset)
   return Token{ k, substringFrom(offset) };
 }
 
-Parser::Parser(const QSharedPointer<Environment> & root)
+Parser::Parser(dex::State & state, const QSharedPointer<Environment> & root)
+  : mState(state)
 {
   mEnvironments.push(root);
-}
-
-void Parser::setup(const script::Script & parser)
-{
-  const script::Namespace parser_ns = parser.rootNamespace().findNamespace("parser");
-  if (parser_ns.isNull())
-  {
-    qDebug() << "Invalid parser file";
-    throw std::runtime_error{ "Invalid parser file" };
-  }
-
-  for (const auto & f : parser_ns.functions())
-  {
-    if (f.name() == "beginFile" && f.returnType() == script::Type::Void)
-      mBeginFile = f;
-    else if (f.name() == "endFile" && f.returnType() == script::Type::Void)
-      mEndFile = f;
-    else if (f.name() == "beginBlock" && f.returnType() == script::Type::Void)
-      mBeginBlock = f;
-    else if (f.name() == "endBlock" && f.returnType() == script::Type::Void)
-      mEndBlock = f;
-    else if (f.name() == "dispatch" && f.returnType() == script::Type::Void)
-      mDispatch = f;
-  }
-
-  if (mBeginFile.isNull() || mEndFile.isNull() || mBeginBlock.isNull() || mEndBlock.isNull() || mDispatch.isNull())
-  {
-    qDebug() << "Invalid parser file";
-    throw std::runtime_error{ "Invalid parser file" };
-  }
 }
 
 void Parser::process(const QStringList & files)
@@ -487,60 +458,28 @@ void Parser::processFile(const QString & path)
     f.close();
   }
 
-  beginFile(path);
+  mState.beginFile(path);
 
   while (mLexer.seekBlock())
   {
-    beginBlock();
+    mState.beginBlock();
 
     while (!mLexer.atBlockEnd())
     {
       NodeRef node = read();
       if (!node.isNull())
-        dispatch(node);
+        mState.dispatch(node);
     }
 
-    endBlock();
+    mState.endBlock();
   }
 
-  endFile();
-}
-
-void Parser::beginFile(const QString & path)
-{
-  script::Engine *e = mBeginFile.engine();
-  script::Value arg = e->newString(path);
-  e->call(mBeginFile, {arg});
-  e->destroy(arg);
-}
-
-void Parser::endFile()
-{
-  script::Engine *e = mEndFile.engine();
-  e->call(mEndFile, {});
-}
-
-void Parser::beginBlock()
-{
-  script::Engine *e = mBeginBlock.engine();
-  e->call(mBeginBlock, {});
-}
-
-void Parser::endBlock()
-{
-  script::Engine *e = mEndBlock.engine();
-  e->call(mEndBlock, {});
-}
-
-void Parser::dispatch(const NodeRef & node)
-{
-  script::Engine *e = mDispatch.engine();
-  e->call(mDispatch, {node.impl()});
+  mState.endFile();
 }
 
 script::Engine* Parser::engine() const
 {
-  return mDispatch.engine();
+  return mState.engine();
 }
 
 } // namespace dex

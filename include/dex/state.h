@@ -5,10 +5,13 @@
 #ifndef DEX_STATE_H
 #define DEX_STATE_H
 
+#include <script/function.h>
 #include <script/value.h>
 
 namespace dex
 {
+
+class NodeRef;
 
 class State
 {
@@ -28,6 +31,16 @@ public:
 
   static State create(script::Engine *e);
 
+  inline script::Engine* engine() const { return mValue.engine(); }
+
+  void beginFile(const QString & path);
+  void endFile();
+
+  void beginBlock();
+  void endBlock();
+
+  void dispatch(const NodeRef & node);
+
   void destroy();
 
   State & operator=(const State & ) = default;
@@ -37,6 +50,11 @@ public:
 
 private:
   script::Value mValue;
+  script::Function mBeginFile;
+  script::Function mEndFile;
+  script::Function mBeginBlock;
+  script::Function mEndBlock;
+  script::Function mDispatch;
 };
 
 } // namespace dex

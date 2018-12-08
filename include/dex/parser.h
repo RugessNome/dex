@@ -6,8 +6,7 @@
 #define DEX_PARSER_H
 
 #include "dex/environment.h"
-
-#include <script/function.h>
+#include "dex/state.h"
 
 #include <QSet>
 #include <QStack>
@@ -87,9 +86,7 @@ private:
 class Parser
 {
 public:
-  Parser(const QSharedPointer<Environment> & root);
-
-  void setup(const script::Script & parser);
+  Parser(dex::State & state, const QSharedPointer<Environment> & root);
 
   void process(const QStringList & files);
 
@@ -107,24 +104,13 @@ protected:
   NodeRef readCommand(const Token & command);
 
   void processFile(const QString & path);
-  void beginFile(const QString & path);
-  void endFile();
-
-  void beginBlock();
-  void endBlock();
-
-  void dispatch(const NodeRef & node);
 
   script::Engine* engine() const;
 
 private:
   Lexer mLexer;
+  dex::State mState;
   QStack<QSharedPointer<Environment>> mEnvironments;
-  script::Function mBeginFile;
-  script::Function mEndFile;
-  script::Function mBeginBlock;
-  script::Function mEndBlock;
-  script::Function mDispatch;
 };
 
 } // namespace dex

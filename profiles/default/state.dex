@@ -23,7 +23,19 @@ public:
   {
     return stack.back().as<Function>();
   }
+
+  void enter(const Ref<Node> & n)
+  {
+	stack.push_back(n);
+  }
   
+  Ref<Node> leave()
+  {
+	Ref<Node> ret = stack.back();
+	stack.pop_back();
+	return ret;
+  }
+
   void dispatch(const Ref<Node> & node)
   {
 	if(stack.isEmpty())
@@ -51,17 +63,17 @@ public:
 	  cb.nodes.get().push_back(node);
 	}
   }
-  
-  void enter(const Ref<Node> & n)
+
+protected:
+
+  void beginFile(const String & path)
   {
-	stack.push_back(n);
+    print("Processing file :" + path);
   }
-  
-  Ref<Node> leave()
+
+  void endFile(const String & path)
   {
-	Ref<Node> ret = stack.back();
-	stack.pop_back();
-	return ret;
+    stack.clear();
   }
   
   void beginBlock()
