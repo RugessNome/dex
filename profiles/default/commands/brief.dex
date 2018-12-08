@@ -1,7 +1,7 @@
 
-import node;
-import nodes.class;
-import nodes.function;
+import model.node;
+import model.class;
+import model.function;
 
 void brief(const Ref<Node> & value, Span::Line)
 {

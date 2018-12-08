@@ -1,6 +1,6 @@
 
-import node;
-import nodes.function;
+import model.node;
+import model.function;
 
 class Class : Node
 {

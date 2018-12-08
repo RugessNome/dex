@@ -1,6 +1,5 @@
 
-import node;
-import nodes;
+import model;
 
 void fun(const Ref<Node> & name, Span::Line)
 {

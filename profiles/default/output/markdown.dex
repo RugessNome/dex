@@ -1,7 +1,6 @@
 
-import commands;
-import node;
-import nodes;
+import commands; // TODO: remove, needed for BoldNode
+import model;
 
 bool simplify_spaces = true;
 

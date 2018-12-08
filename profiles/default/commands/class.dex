@@ -1,6 +1,6 @@
 
-import node;
-import nodes.class;
+import model.node;
+import model.class;
 
 class ClassCommand : Command
 {

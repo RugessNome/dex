@@ -1,8 +1,8 @@
 
-import node;
-import nodes.class;
-import nodes.function;
-import nodes.code;
+import model.node;
+import model.class;
+import model.function;
+import model.code;
 
 class State
 {

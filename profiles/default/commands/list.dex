@@ -1,6 +1,6 @@
 
-import node;
-import nodes.list;
+import model.node;
+import model.list;
 
 namespace list
 {
