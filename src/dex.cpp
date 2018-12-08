@@ -65,6 +65,12 @@ script::Value print_string(script::FunctionCall *c)
 
 } // namespace callbacks
 
+Application::CommandLineOptions::CommandLineOptions()
+  : saveSettings(false)
+{
+
+}
+
 Application::Application(int & argc, char **argv)
   : QApplication(argc, argv)
 {
@@ -92,20 +98,6 @@ Application::Application(int & argc, char **argv)
   dex::File::register_type(mEngine.rootNamespace());
 
   mSettings = new QSettings("dex.ini", QSettings::IniFormat, this);
-
-  if (mSettings->contains("inputdir"))
-    mInputDirectory = QDir{ mSettings->value("inputdir").toString() };
-  else
-    mInputDirectory = QDir::current();
-
-  if (mSettings->contains("profile"))
-    mProfile = mSettings->value("profile").toString();
-
-  if (mSettings->contains("outputformat"))
-    mOutputFormat = mSettings->value("outputformat").toString();
-  
-  if (mSettings->contains("outputdir"))
-    mOutputDirectory = QDir{ mSettings->value("outputdir").toString() };
 }
 
 static script::Script get_script(const std::vector<script::Script> & list, const std::string & path)
@@ -124,8 +116,8 @@ int Application::run()
   try {
     parserCommandLineArgs();
     setup();
-    process(mInputDirectory.absolutePath());
-    output(mOutputFormat, mOutputDirectory.absolutePath());
+    process(inputDirectory().absolutePath());
+    output(outputFormat(), outputDirectory().absolutePath());
     mState.destroy();
   }
   catch (...)
@@ -138,16 +130,16 @@ int Application::run()
 
 void Application::setup()
 {
-  QString pdir = profileDir().absolutePath();
+  QString pdir = activeProfileDir().absolutePath();
 
-  if (!profileDir().exists())
+  if (!activeProfileDir().exists())
   {
     qDebug() << "Profile dir does not exist";
     throw std::runtime_error{ "Profile dir does not exists" };
   }
 
   scriptEngine()->setScriptExtension(".dex");
-  scriptEngine()->setSearchDirectory(std::string{ profileDir().absolutePath().toUtf8().data() });
+  scriptEngine()->setSearchDirectory(std::string{ activeProfileDir().absolutePath().toUtf8().data() });
 
   register_span_types();
   dex::Command::registerCommandType(scriptEngine());
@@ -159,7 +151,7 @@ void Application::setup()
   scriptEngine()->rootNamespace().addValue("state", mState);
   scriptEngine()->manage(mState);
 
-  QDir commands = QDir{ profileDir().absoluteFilePath("commands") };
+  QDir commands = QDir{ activeProfileDir().absoluteFilePath("commands") };
   QList<script::Script> scripts;
   for (const auto & f : commands.entryInfoList())
   {
@@ -201,28 +193,27 @@ void Application::parserCommandLineArgs()
   for (int i(0); i < args.size(); ++i)
   {
     if (args.at(i) == "-p")
-    {
-      mProfile = args.at(i + 1);
-      mSettings->setValue("profile", mProfile);
-    }
+      mCliOptions.activeProfile = args.at(i + 1);
 
     if (args.at(i) == "-i")
-    {
-      mInputDirectory = QDir{ args.at(i + 1) };
-      mSettings->setValue("inputdir", args.at(i + 1));
-    }
+      mCliOptions.inputDirectory = args.at(i + 1);
 
     if (args.at(i) == "-o")
-    {
-      mOutputDirectory = QDir{ args.at(i + 1) };
-      mSettings->setValue("outputdir", args.at(i + 1));
-    }
+      mCliOptions.outputDirectory = args.at(i + 1);
 
     if (args.at(i) == "-g")
-    {
-      mOutputFormat = args.at(i + 1);
-      mSettings->setValue("outputformat", mOutputFormat);
-    }
+      mCliOptions.outputFormat = args.at(i + 1);
+
+    if (args.at(i) == "--profiles-dir")
+      mCliOptions.profilesDirectory = args.at(i + 1);
+
+    if (args.at(i) == "--save-settings")
+      mCliOptions.saveSettings = true;
+  }
+
+  if (mCliOptions.saveSettings)
+  {
+    qDebug() << "Save settings not implemented yet";
   }
 }
 
@@ -348,7 +339,7 @@ void Application::load_state()
 {
   using namespace script;
 
-  Script s = mEngine.newScript(SourceFile{ profileDir().absoluteFilePath("state.dex").toUtf8().data() });
+  Script s = mEngine.newScript(SourceFile{ activeProfileDir().absoluteFilePath("state.dex").toUtf8().data() });
   if (!s.compile())
   {
     qDebug() << "Could not load state file";
@@ -401,6 +392,59 @@ void Application::output(const QString & outputname, const QString & dir)
 
   qDebug() << "No output found with name " << outputname;
   throw std::runtime_error{ "Output format not supported" };
+}
+
+QDir Application::inputDirectory() const
+{
+  if (!mCliOptions.inputDirectory.isEmpty())
+    return QDir{ mCliOptions.inputDirectory };
+
+  if (!mSettings->contains("inputdir"))
+    return QDir::current();
+
+  return QDir{ mSettings->value("inputdir").toString() };
+}
+
+QDir Application::outputDirectory() const
+{
+  if (!mCliOptions.outputDirectory.isEmpty())
+    return QDir{ mCliOptions.outputDirectory };
+
+  return QDir{ mSettings->value("outputdir").toString() };
+}
+
+QDir Application::profilesDirectory() const
+{
+  if (!mCliOptions.profilesDirectory.isEmpty())
+    return QDir{ mCliOptions.profilesDirectory };
+
+  if (mSettings->contains("profilesdir"))
+    return QDir{ mSettings->value("profilesdir").toString() };
+
+  return QDir{ QCoreApplication::applicationDirPath() + "/profiles" };
+}
+
+QString Application::outputFormat() const
+{
+  if (!mCliOptions.outputFormat.isEmpty())
+    return mCliOptions.outputFormat;
+
+  return mSettings->value("outputformat").toString();
+}
+
+QString Application::activeProfile() const
+{
+  if (!mCliOptions.activeProfile.isEmpty())
+    return mCliOptions.activeProfile;
+
+  return mSettings->value("profile").toString();
+}
+
+QDir Application::activeProfileDir() const
+{
+  QDir d = profilesDirectory();
+  d.cd(activeProfile());
+  return d;
 }
 
 void Application::process(dex::Parser & parser, const QDir & dir)
@@ -480,7 +524,7 @@ static QList<QSharedPointer<dex::Output>> load_outputs(QList<script::Script> & s
 void Application::load_outputs()
 {
   QList<script::Script> scripts;
-  QDir output = profileDir();
+  QDir output = activeProfileDir();
   output.cd("output");
   if (!output.exists())
   {
@@ -490,9 +534,4 @@ void Application::load_outputs()
 
   load_outputs_scripts_recur(*this, scripts, output);
   mOutputs = ::load_outputs(scripts);
-}
-
-QDir Application::profileDir() const
-{
-  return QDir{ QCoreApplication::applicationDirPath() + "/profiles/" + mProfile };
 }

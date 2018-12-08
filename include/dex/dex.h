@@ -41,6 +41,15 @@ public:
 
   void output(const QString & outputname, const QString & dir);
 
+  QDir inputDirectory() const;
+  QDir outputDirectory() const;
+  QDir profilesDirectory() const;
+  QString outputFormat() const;
+
+  QString activeProfile() const;
+
+  QDir activeProfileDir() const;
+
 private:
   void parserCommandLineArgs();
 
@@ -50,15 +59,24 @@ private:
   void process(dex::Parser & parser, const QDir & dir);
   void load_outputs();
 
-  QDir profileDir() const;
-
 private:
   script::Engine mEngine;
   dex::State mState;
-  QDir mInputDirectory;
-  QDir mOutputDirectory;
-  QString mOutputFormat;
-  QString mProfile;
+
+  struct CommandLineOptions
+  {
+    CommandLineOptions();
+
+    QString inputDirectory;
+    QString outputDirectory;
+    QString outputFormat;
+    QString profilesDirectory;
+    QString activeProfile;
+    bool saveSettings;
+  };
+
+  CommandLineOptions mCliOptions;
+
   QSharedPointer<dex::Environment> mRootEnvironment;
   QList<QSharedPointer<dex::Output>> mOutputs;
   QSettings *mSettings;
