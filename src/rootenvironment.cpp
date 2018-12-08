@@ -7,6 +7,7 @@
 #include "dex/bracketsarguments.h"
 #include "dex/command.h"
 
+#include <script/class.h>
 #include <script/function.h>
 #include <script/namespace.h>
 #include <script/script.h>
@@ -30,6 +31,13 @@ void RootEnvironment::fill(const script::Script & s)
   for (const auto & f : ns.functions())
   {
     auto command = dex::Command::build(f);
+    if (command != nullptr)
+      this->commands.append(command);
+  }
+
+  for (const auto & c : ns.classes())
+  {
+    auto command = dex::Command::build(c);
     if (command != nullptr)
       this->commands.append(command);
   }

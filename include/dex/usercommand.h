@@ -8,6 +8,7 @@
 #include "dex/command.h"
 
 #include <script/function.h>
+#include <script/value.h>
 
 namespace dex
 {
@@ -19,7 +20,8 @@ class UserCommand : public Command
 {
 public:
   UserCommand(const script::Function & fun);
-  ~UserCommand() = default;
+  UserCommand(const QString & name, script::Value && object, script::Function func);
+  ~UserCommand();
 
   QString name() const override;
   int parameterCount() const override;
@@ -28,13 +30,17 @@ public:
 
   NodeRef invoke(Parser *, const BracketsArguments & brackets, const QList<NodeRef> & arguments) override;
 
+  static bool check(const script::Prototype & proto);
   static bool check(const script::Function & f);
+
+  static QSharedPointer<UserCommand> create(const script::Class & cla);
 
 private:
   script::Value convert(const NodeRef & node, const script::Type & type);
 
 private:
   QString mName;
+  script::Value mObject;
   script::Function mFunction;
 };
 

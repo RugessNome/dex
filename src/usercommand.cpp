@@ -7,7 +7,12 @@
 #include "dex/bracketsarguments.h"
 #include "dex/node.h"
 
+#include <script/class.h>
 #include <script/engine.h>
+#include <script/operator.h>
+#include <script/prototypes.h>
+
+#include <QDebug>
 
 namespace dex
 {
@@ -19,12 +24,32 @@ QSharedPointer<Command> Command::build(const script::Function & fun)
   return nullptr;
 }
 
+QSharedPointer<Command> Command::build(const script::Class & cla)
+{
+  return UserCommand::create(cla);
+}
+
 UserCommand::UserCommand(const script::Function & fun)
   : mFunction(fun)
 {
   mName = fun.name().data();
-  if (mName.endsWith("_"))
-    mName.chop(1);
+}
+
+UserCommand::UserCommand(const QString & name, script::Value && object, script::Function func)
+  : mName(name)
+  , mObject(object)
+  , mFunction(func)
+{
+
+}
+
+UserCommand::~UserCommand()
+{
+  if (!mObject.isNull())
+  {
+    mObject.engine()->destroy(mObject);
+    mObject = script::Value{};
+  }
 }
 
 QString UserCommand::name() const
@@ -89,10 +114,17 @@ NodeRef UserCommand::invoke(Parser*, const BracketsArguments & brackets, const Q
   std::vector<script::Value> values;
 
   int proto_offset = 0;
+
+  if (!mObject.isNull())
+  {
+    ++proto_offset;
+    values.push_back(mObject);
+  }
+
   if (acceptsBracketArguments())
   {
     values.push_back(brackets.expose(e));
-    proto_offset = 1;
+    ++proto_offset;
   }
 
   int span_offset = (span() != CommandSpan::NotApplicable) ? 1 : 0;
@@ -129,9 +161,8 @@ script::Value UserCommand::convert(const NodeRef & node, const script::Type & ty
   throw std::runtime_error{ "Could not convert argument" };
 }
 
-bool UserCommand::check(const script::Function & f)
+bool UserCommand::check(const script::Prototype & proto)
 {
-  const auto & proto = f.prototype();
   if (proto.size() == 0)
     return true;
 
@@ -144,7 +175,7 @@ bool UserCommand::check(const script::Function & f)
     if (proto.at(i).baseType() != script::Type::Boolean
       && proto.at(i).baseType() != script::Type::Int
       && proto.at(i).baseType() != script::Type::String
-      && proto.at(i).baseType() != NodeRef::type_info().type) 
+      && proto.at(i).baseType() != NodeRef::type_info().type)
     {
       if (i == proto.size() - 1)
       {
@@ -158,11 +189,73 @@ bool UserCommand::check(const script::Function & f)
 
       return false;
     }
-     
+
     ++i;
   }
 
   return true;
+}
+
+bool UserCommand::check(const script::Function & f)
+{
+  return check(f.prototype());
+}
+
+QSharedPointer<UserCommand> UserCommand::create(const script::Class & cla)
+{
+  script::Engine *e = cla.engine();
+
+  if (!cla.inherits(e->getClass(Command::type_info().type)))
+    return nullptr;
+
+  if (!cla.isDefaultConstructible())
+  {
+    qDebug() << "Class" << cla.name().data() << "derived from Command must be default constructible";
+    throw std::runtime_error{ "Invalid command class" };
+  }
+
+  script::Function name;
+
+  for (const auto & f : cla.memberFunctions())
+  {
+    if (f.name() == "name" && f.returnType().baseType() == script::Type::String)
+      name = f;
+  }
+
+  if (name.isNull())
+  {
+    qDebug() << "Class" << cla.name().data() << "derived from Command must define a name() function";
+    throw std::runtime_error{ "Invalid command class" };
+  }
+
+  script::Function call_operator;
+  for (const auto & op : cla.operators())
+  {
+    if (op.operatorId() == script::FunctionCallOperator)
+      call_operator = op;
+  }
+
+  if (call_operator.isNull())
+  {
+    qDebug() << "Class" << cla.name().data() << "derived from Command must define a operator() function";
+    throw std::runtime_error{ "Invalid command class" };
+  }
+
+  const script::Prototype & cop = call_operator.prototype();
+  std::vector<script::Type> params{ cop.begin() + 1, cop.end() };
+  script::DynamicPrototype proto{ call_operator.returnType(),  std::move(params) };
+  if (!check(proto))
+  {
+    qDebug() << "Class" << cla.name().data() << "derived from Command has invalid operator()";
+    throw std::runtime_error{ "Invalid command class" };
+  }
+
+  script::Value obj = e->construct(cla.id(), {});
+  script::Value command_name_value = e->invoke(name, { obj });
+  QString command_name = command_name_value.toString();
+  e->destroy(command_name_value);
+
+  return QSharedPointer<UserCommand>::create(command_name, std::move(obj), call_operator);
 }
 
 } // namespace dex

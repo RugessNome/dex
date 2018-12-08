@@ -150,6 +150,7 @@ void Application::setup()
   scriptEngine()->setSearchDirectory(std::string{ profileDir().absolutePath().toUtf8().data() });
 
   register_span_types();
+  dex::Command::registerCommandType(scriptEngine());
   dex::BracketsArguments::register_type(scriptEngine()->rootNamespace());
   load_state();
   load_nodes();
@@ -159,7 +160,6 @@ void Application::setup()
   scriptEngine()->manage(mState);
 
   QDir commands = QDir{ profileDir().absoluteFilePath("commands") };
-
   QList<script::Script> scripts;
   for (const auto & f : commands.entryInfoList())
   {

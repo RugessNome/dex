@@ -2,12 +2,21 @@
 import node;
 import nodes.class;
 
-void class_(const String & name)
+class ClassCommand : Command
 {
-  auto ret = Ref<Class>::make(name);
-  state.stack.append(ret);
-  state.classes.append(ret);
-}
+public:
+  ClassCommand() = default;
+  ~ClassCommand() = default;
+
+  String name() const { return "class"; }
+
+  void operator()(const String & name)
+  {
+    auto ret = Ref<Class>::make(name);
+    state.stack.append(ret);
+    state.classes.append(ret);
+  }
+};
 
 void endclass()
 {

@@ -12,6 +12,7 @@
 
 namespace script
 {
+class Class;
 class Function;
 } // namespace script
 
@@ -32,7 +33,16 @@ public:
   virtual CommandSpan::Value span() const = 0;
   virtual bool acceptsBracketArguments() const = 0;
 
+  struct TypeInfo {
+    script::Type type;
+  };
+
+  static TypeInfo static_type_info;
+  inline static TypeInfo & type_info() { return static_type_info; }
+
+  static void registerCommandType(script::Engine *e);
   static QSharedPointer<Command> build(const script::Function & func);
+  static QSharedPointer<Command> build(const script::Class & cla);
 
   virtual NodeRef invoke(Parser *parser, const BracketsArguments & brackets, const QList<NodeRef> & arguments) = 0;
 };
