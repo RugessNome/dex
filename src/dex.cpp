@@ -177,6 +177,7 @@ void Application::setup()
   auto root_env = QSharedPointer<dex::RootEnvironment>::create();
   root_env->commands.append(QSharedPointer<dex::BeginCommand>::create());
   root_env->commands.append(QSharedPointer<dex::EndCommand>::create());
+  root_env->commands.append(QSharedPointer<dex::InputCommand>::create());
 
   for (const auto & s : scripts)
     root_env->fill(s);
@@ -449,18 +450,7 @@ QDir Application::activeProfileDir() const
 
 void Application::process(dex::Parser & parser, const QDir & dir)
 {
-  for (const auto & f : dir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot))
-  {
-    if (f.isDir())
-    {
-      process(parser, QDir{ f.absoluteFilePath() });
-    }
-    else
-    {
-      parser.process(QStringList{ f.absoluteFilePath() });
-    }
-  }
-
+  parser.process(dir);
 }
 
 

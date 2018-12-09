@@ -23,6 +23,8 @@ public:
   void push_back(const NodeRef & n);
   NodeRef at(int n) const;
 
+  QString toString() const;
+
   struct TypeInfo {
     script::Type type;
     script::Function size;

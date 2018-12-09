@@ -52,6 +52,14 @@ public:
   NodeRef invoke(Parser *parser, const BracketsArguments & brackets, const QList<NodeRef> & arguments) override;
 };
 
+class InputCommand : public BuiltinCommand
+{
+public:
+  InputCommand();
+
+  NodeRef invoke(Parser *parser, const BracketsArguments & brackets, const QList<NodeRef> & arguments) override;
+};
+
 } // namespace dex
 
 #endif // DEX_BUILTIN_COMMAND_H

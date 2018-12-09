@@ -4,6 +4,7 @@
 
 #include "dex/builtincommand.h"
 
+#include "dex/groupnode.h"
 #include "dex/node.h"
 #include "dex/parser.h"
 
@@ -93,6 +94,35 @@ NodeRef EndCommand::invoke(Parser *parser, const BracketsArguments & brackets, c
 
   env->leave();
   parser->leave();
+
+  return NodeRef{};
+}
+
+
+InputCommand::InputCommand()
+  : BuiltinCommand("input", 1, CommandSpan::Word, false)
+{
+
+}
+
+NodeRef InputCommand::invoke(Parser *parser, const BracketsArguments & brackets, const QList<NodeRef> & arguments)
+{
+  QString file;
+  if (arguments.first().isWord())
+  {
+    file = arguments.first().toString();
+  }
+  else if (arguments.first().isGroup())
+  {
+    file = arguments.first().getNode().asGroupNode().toString();
+  }
+  else
+  {
+    qDebug() << "Invalid file for input command";
+    throw std::runtime_error{ "Input command : invalid file" };
+  }
+
+  parser->input(file);
 
   return NodeRef{};
 }

@@ -24,6 +24,10 @@
  *   \li \c foo
  *   \li also there is \b bar.
  * \end{list}
+ *
+ * \input{input.txt}
+ *
+ * This is some text after an input command.
  */
 
  

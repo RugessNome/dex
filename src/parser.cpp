@@ -30,16 +30,46 @@ Lexer::Lexer()
 
 void Lexer::start(const QString & doc)
 {
-  mDocument = doc;
-  mPos.line = 0;
-  mPos.column = 0;
-  mPos.offset = 0;
+  mDocuments.clear();
+
+  Document d;
+  d.content = doc;
+  d.pos.line = 0;
+  d.pos.column = 0;
+  d.pos.offset = 0;
+  mDocuments.push(d);
+  mLastProducedTokenLine = 0;
+}
+
+void Lexer::input(const QString & content)
+{
+  assert(mDocuments.size() > 0);
+
+  Document d;
+  d.content = content;
+  d.pos.line = 0;
+  d.pos.column = 0;
+  d.pos.offset = 0;
+  mDocuments.push(d);
   mLastProducedTokenLine = 0;
 }
 
 Token Lexer::read()
 {
-  const Position startpos = mPos;
+  if (atInputEnd())
+  {
+    if (mDocuments.size() > 1)
+    {
+      mDocuments.pop();
+    }
+    else
+    {
+      qDebug() << "Lexer::read() : unexpected end of input";
+      throw std::runtime_error{ "Unexpected end of input" };
+    }
+  }
+
+  const Position startpos = currentPos();
 
   if(readSpaces())
     return Token{ Token::Space, substringFrom(startpos.offset) };
@@ -72,7 +102,7 @@ Token Lexer::read()
 
   /// TODO: remove the use of isDiscardable and isTerminator here by 
   // using Token::Kind and stopping when char is not Token::Word
-  while (!atBlockEnd() && !isDiscardable(peekChar()) && !isTerminator(peekChar()))
+  while (!atInputEnd() && !atBlockEnd() && !isDiscardable(peekChar()) && !isTerminator(peekChar()))
   {
     readChar();
   }
@@ -82,25 +112,30 @@ Token Lexer::read()
 
 bool Lexer::atBlockEnd() const
 {
-  return QStringRef{ &mDocument, mPos.offset, mBlockDelimiter.second.length() } == mBlockDelimiter.second;
+  return mDocuments.size() == 1
+    && substring(currentPos().offset, mBlockDelimiter.second.length()) == mBlockDelimiter.second;;
 }
 
 bool Lexer::seekBlock()
 {
-  while (mPos.offset < mDocument.length() - mBlockDelimiter.first.length())
+  assert(mDocuments.size() == 1);
+
+  Position & pos = currentDocument().pos;
+
+  while (pos.offset < currentDocument().length() - mBlockDelimiter.first.length())
   {
     if (!atBlockBegin())
     {
-      QChar c = mDocument[mPos.offset];
-      mPos.offset += 1;
+      QChar c = currentDocument().content[pos.offset];
+      pos.offset += 1;
       if (c == '\n')
       {
-        mPos.line += 1;
-        mPos.column = 0;
+        pos.line += 1;
+        pos.column = 0;
       }
       else
       {
-        mPos.column += 1;
+        pos.column += 1;
       }
     }
     else
@@ -124,29 +159,35 @@ void Lexer::readChar(int count)
 
 QChar Lexer::readChar()
 {
-  QChar result = mDocument[mPos.offset];
-  mPos.offset += 1;
+  Position & pos = currentDocument().pos;
+
+  QChar result = currentDocument().content[pos.offset];
+  pos.offset += 1;
   if (result == '\n')
   {
-    mPos.line += 1;
-    mPos.column = 0;
+    pos.line += 1;
+    pos.column = 0;
     beginLine();
   }
   else
   {
-    mPos.column += 1;
+    pos.column += 1;
   }
   return result;
 }
 
 QChar Lexer::peekChar() const
 {
-  return mDocument[mPos.offset];
+  const Position & pos = currentDocument().pos;
+  return currentDocument().content[pos.offset];
 }
 
 bool Lexer::atBlockBegin() const
 {
-  return QStringRef{ &mDocument, mPos.offset, mBlockDelimiter.first.length() } == mBlockDelimiter.first;
+  const QString & content = currentDocument().content;
+  const Position & pos = currentDocument().pos;
+
+  return mDocuments.size() == 1 && QStringRef{ &content, pos.offset, mBlockDelimiter.first.length() } == mBlockDelimiter.first;
 }
 
 bool Lexer::isTerminator(const QChar & c) const
@@ -175,47 +216,75 @@ bool Lexer::readIgnoredSequence()
 
 bool Lexer::readSpaces()
 {
-  const int offset = mPos.offset;
+  const int offset = currentDocument().pos.offset;
 
   while (!atBlockEnd() && peekChar().isSpace() && peekChar() != '\n')
     readChar();
 
-  return mPos.offset != offset;
+  return currentDocument().pos.offset != offset;
 }
 
 void Lexer::beginLine()
 {
-  const Position pos = mPos;
+  const Position pos = currentDocument().pos;
 
-  while (!atBlockEnd() && peekChar().isSpace())
+  while (!atBlockEnd() && !atInputEnd() && peekChar().isSpace())
     readChar();
 
-  if (atBlockEnd())
+  if (atBlockEnd() || atInputEnd())
     return;
 
   if (!readIgnoredSequence())
-    mPos = pos;
+    currentDocument().pos = pos;
 }
 
 QStringRef Lexer::substring(int count) const
 {
-  return QStringRef{ &mDocument, mPos.offset, std::min(count, mDocument.length() - mPos.offset) };
+  const QString & content = currentDocument().content;
+  const Position & pos = currentDocument().pos;
+
+  return QStringRef{ &content, pos.offset, std::min(count, content.length() - pos.offset) };
 }
 
 QStringRef Lexer::substring(int pos, int count) const
 {
-  return QStringRef{ &mDocument, pos, std::min(count, mDocument.length() - pos) };
+  const QString & content = currentDocument().content;
+
+  return QStringRef{ &content, pos, std::min(count, content.length() - pos) };
 }
 
 QStringRef Lexer::substringFrom(int offset) const
 {
-  return QStringRef{ &mDocument, offset, std::min(mPos.offset - offset, mDocument.length() - offset) };
+  const QString & content = currentDocument().content;
+  const Position & pos = currentDocument().pos;
+
+  return QStringRef{ &content, offset, std::min(pos.offset - offset, content.length() - offset) };
 }
 
 Token Lexer::produce(Token::Kind k, int offset)
 {
-  mLastProducedTokenLine = mPos.line;
+  mLastProducedTokenLine = currentDocument().pos.line;
   return Token{ k, substringFrom(offset) };
+}
+
+bool Lexer::atInputEnd() const
+{
+  return currentDocument().length() == currentDocument().pos.offset;
+}
+
+Lexer::Document & Lexer::currentDocument()
+{
+  return mDocuments.back();
+}
+
+const Lexer::Document & Lexer::currentDocument() const
+{
+  return mDocuments.back();
+}
+
+Lexer::Position Lexer::currentPos() const
+{
+  return currentDocument().pos;
 }
 
 Parser::Parser(dex::State & state, const QSharedPointer<Environment> & root)
@@ -224,10 +293,20 @@ Parser::Parser(dex::State & state, const QSharedPointer<Environment> & root)
   mEnvironments.push(root);
 }
 
-void Parser::process(const QStringList & files)
+void Parser::process(const QDir & directory)
 {
-  for (const auto & f : files)
-    processFile(f);
+  for (const auto & f : directory.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot))
+  {
+    if (f.isDir())
+    {
+      process(QDir{ f.absoluteFilePath() });
+    }
+    else
+    {
+      mCurrentDir = directory;
+      processFile(f.absoluteFilePath());
+    }
+  }
 }
 
 QSharedPointer<Environment> Parser::getEnvironment(const QString & name) const
@@ -251,6 +330,28 @@ void Parser::enter(const QSharedPointer<Environment> & env)
 void Parser::leave()
 {
   mEnvironments.pop_back();
+}
+
+void Parser::input(const QString & filename)
+{
+  if (!mCurrentDir.exists(filename))
+  {
+    qDebug() << "Could not find input file " << filename;
+    return;
+  }
+
+  QString path = mCurrentDir.filePath(filename);
+  QFile f{ path };
+  if (!f.open(QIODevice::ReadOnly))
+  {
+    qDebug() << "Could not open input file " << filename;
+    return;
+  }
+
+  QString content = QString::fromUtf8(f.readAll());
+  f.close();
+
+  mLexer.input(content);
 }
 
 void Parser::start(const QString & text)

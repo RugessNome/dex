@@ -1,0 +1,6 @@
+
+This is simple input with \b bold text and some code.
+
+\begin{code}
+return 0;
+\end{code}

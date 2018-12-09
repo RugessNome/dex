@@ -8,6 +8,7 @@
 #include "dex/environment.h"
 #include "dex/state.h"
 
+#include <QDir>
 #include <QSet>
 #include <QStack>
 
@@ -40,6 +41,8 @@ public:
   Lexer();
 
   void start(const QString & doc);
+  
+  void input(const QString & content);
 
   static const QChar AntiSlash;
 
@@ -49,7 +52,7 @@ public:
 
   bool seekBlock();
 
-  inline int currentLine() const { return mPos.line; }
+  inline int currentLine() const { return currentDocument().pos.line; }
   inline int lastProductiveLine() const { return mLastProducedTokenLine; }
 
 protected:
@@ -66,6 +69,7 @@ protected:
   QStringRef substring(int pos, int count) const;
   QStringRef substringFrom(int offset) const;
   Token produce(Token::Kind k, int offset);
+  bool atInputEnd() const;
 
 public:
   struct Position {
@@ -74,9 +78,20 @@ public:
     int offset;
   };
 
+  struct Document
+  {
+    Position pos;
+    QString content;
+
+    inline int length() const { return content.length(); }
+  };
+
+  Document & currentDocument();
+  const Document & currentDocument() const;
+  Position currentPos() const;
+
 private:
-  Position mPos;
-  QString mDocument;
+  QStack<Document> mDocuments;
   QPair<QString, QString> mBlockDelimiter;
   QStringList mIgnoredSequences;
   QSet<QChar> mPunctuators;
@@ -88,11 +103,13 @@ class Parser
 public:
   Parser(dex::State & state, const QSharedPointer<Environment> & root);
 
-  void process(const QStringList & files);
+  void process(const QDir & directory);
 
   QSharedPointer<Environment> getEnvironment(const QString & name) const;
   void enter(const QSharedPointer<Environment> & env);
   void leave();
+
+  void input(const QString & filename);
 
 protected:
   void start(const QString & text);
@@ -110,6 +127,7 @@ protected:
 private:
   Lexer mLexer;
   dex::State mState;
+  QDir mCurrentDir;
   QStack<QSharedPointer<Environment>> mEnvironments;
 };
 

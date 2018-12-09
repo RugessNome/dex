@@ -70,6 +70,12 @@ static script::Value open(script::FunctionCall *c)
   return c->engine()->newBool(result);
 }
 
+static script::Value is_open(script::FunctionCall *c)
+{
+  QFile & self = File::get(c->thisObject());
+  return c->engine()->newBool(self.isOpen());
+}
+
 static script::Value read(script::FunctionCall *c)
 {
   QFile & self = File::get(c->thisObject());
@@ -147,6 +153,11 @@ void File::register_type(script::Namespace ns)
   file.newMethod("open", callbacks::open)
     .returns(Type::Boolean)
     .params(Type::Int)
+    .create();
+
+  file.newMethod("isOpen", callbacks::is_open)
+    .setConst()
+    .returns(Type::Boolean)
     .create();
 
   file.newMethod("read", callbacks::read)

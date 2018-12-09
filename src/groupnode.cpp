@@ -42,4 +42,18 @@ NodeRef GroupNode::at(int n) const
   return NodeRef{ std::move(result) };
 }
 
+QString GroupNode::toString() const
+{
+  const int s = size();
+  QString ret;
+
+  for (int i(0); i < s; ++i)
+  {
+    NodeRef n = at(i);
+    ret += n.toString();
+  }
+
+  return ret;
+}
+
 } // namespace dex
