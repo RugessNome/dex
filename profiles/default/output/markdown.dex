@@ -5,169 +5,203 @@ import model;
 bool simplify_spaces = true;
 
 
-void write_word(File & f, WordNode & n)
+class MarkdownOutput
 {
-  f.write(n.word);
-}
-
-void write_eol_node(File & f, EndOfLine & n)
-{
-  f.write("\n");
-}
-
-void write_space_node(File & f, Space & n)
-{
-  if(simplify_spaces)
-	f.write(" ");
-  else
-	f.write(n.text);
-}
-
-void write_group_node(File & f, GroupNode & n)
-{
-  for(int i(0); i < n.nodes.size(); ++i)
+public:
+  String mOutputdir;
+  File mFile;
+public:
+  
+  MarkdownOutput(const String & outdir)
+    : mOutputdir(outdir)
   {
-    write_node(f, n.nodes.at(i));
+
   }
-}
-
-void write_bold_node(File & f, BoldNode & n)
-{
-  f.write("**");
-  write_node(f, n.argument);
-  f.write("**");
-}
-
-void write_type_node(File & f, Type & n)
-{
-  f.write("`");
-  write_node(f, n.argument);
-  f.write("`");
-}
-
-void write_code_block(File & f, CodeBlock & n)
-{
-  f.write("```");
-  f.write(n.lang);
-  simplify_spaces = false;
-  write_node(f, n.nodes);
-  simplify_spaces = true;
-  f.write("```");
-}
-
-void write_inline_code(File & f, InlineCode & n)
-{
-  f.write("`");
-  write_node(f, n.argument);
-  f.write("`");
-}
-
-void write_link(File & f, Link & n)
-{
-  f.write("[");
-  write_node(f, n.text);
-  f.write("](");
-  write_node(f, n.url);
-  f.write(")");
-}
-
-void write_list(File & f, ListNode & n)
-{
-  for (int i(0); i < n.items.size(); ++i)
+  
+  ~MarkdownOutput() = default;
+  
+  void process()
   {
-    f.write("- ");
-    write_node(f, n.items.at(i));
-    f.write("\n");
+    for(int i(0); i < state.classes.size(); ++i)
+    {  
+      Class & cla = state.classes.at(i);
+      mFile.setFileName(mOutputdir + "/" + cla.name + ".md");
+      if(!mFile.open(File::WriteOnly))
+      {
+        print("Could not open output file");
+        continue;
+      }
+	    
+      write_class(cla);
+	    mFile.close();
+    }
   }
-}
-
-void write_node(File & f, const Ref<Node> & n)
-{
-  if(n.is<WordNode>()) {
-    write_word(f, n.as<WordNode>());
-  } else if(n.is<Space>()) {
-	write_space_node(f, n.as<Space>());
-  } else if(n.is<EndOfLine>()) {
-	write_eol_node(f, n.as<EndOfLine>());
-  } else if(n.is<GroupNode>()) {
-	write_group_node(f, n.as<GroupNode>());
-  } else if(n.is<BoldNode>()) {
-	write_bold_node(f, n.as<BoldNode>());
-  } else if(n.is<Type>()) {
-	write_type_node(f, n.as<Type>());
-  } else if(n.is<CodeBlock>()) {
-	write_code_block(f, n.as<CodeBlock>());
-  } else if(n.is<InlineCode>()) {
-	write_inline_code(f, n.as<InlineCode>());
-  } else if(n.is<Link>()) {
-	write_link(f, n.as<Link>());
-  } else if (n.is<ListNode>()) {
-    write_list(f, n.as<ListNode>());
-  }
-}
-
-void write_class(File & f, Class & c)
-{
-  f.write("# " + c.name + "\n\n");
   
-  if(!c.brief.isNull())
+  
+  void write_word(WordNode & n)
   {
-    f.write("**Brief:** ");
-    write_node(f, c.brief);
+    mFile.write(n.word);
   }
   
-  f.write("\n\n");
-  
-  write_node(f, c.description);
-  
-  f.write("\n\n");
-  
-  for(int i(0); i < c.functions.size(); ++i)
+  void write_eol_node(EndOfLine & n)
   {
-	write_mem_fun(f, c.functions.at(i));
+    mFile.write("\n");
   }
-}
-
-void write_mem_fun(File & f, Function & fun)
-{
-  f.write("## ");
-  write_node(f, fun.name);
-  f.write("\n\n");
-
-  if(!fun.brief.isNull())
+  
+  void write_space_node(Space & n)
   {
-    f.write("**Brief:** ");
-    write_node(f, fun.brief);
-	f.write("\n\n");
+    if(simplify_spaces)
+  	  mFile.write(" ");
+    else
+  	  mFile.write(n.text);
   }
   
-  if(!fun.params.isEmpty())
+  void write_group_node(GroupNode & n)
   {
-	f.write("**Parameters:** \n");
-	for(int i(0); i < fun.params.size(); ++i)
-	{
-      f.write("- ");
-	  write_node(f, fun.params.at(i));
-	  f.write("\n");
-	}
-	f.write("\n");
+    for(int i(0); i < n.nodes.size(); ++i)
+    {
+      write_node(n.nodes.at(i));
+    }
   }
   
-  if(!fun.returns.isNull())
+  void write_bold_node(BoldNode & n)
   {
-	f.write("**Returns:** ");
-	write_node(f, fun.returns);
-	f.write("\n");
+    mFile.write("**");
+    write_node(n.argument);
+    mFile.write("**");
   }
   
-  if(!fun.description.isNull())
+  void write_type_node(Type & n)
   {
-	write_node(f, fun.description); 
+    mFile.write("`");
+    write_node(n.argument);
+    mFile.write("`");
   }
   
+  void write_code_block(CodeBlock & n)
+  {
+    mFile.write("```");
+    mFile.write(n.lang);
+    simplify_spaces = false;
+    write_node(n.nodes);
+    simplify_spaces = true;
+    mFile.write("```");
+  }
   
-  f.write("\n\n");
-}
+  void write_inline_code(InlineCode & n)
+  {
+    mFile.write("`");
+    write_node(n.argument);
+    mFile.write("`");
+  }
+  
+  void write_link(Link & n)
+  {
+    mFile.write("[");
+    write_node(n.text);
+    mFile.write("](");
+    write_node(n.url);
+    mFile.write(")");
+  }
+  
+  void write_list(ListNode & n)
+  {
+    for (int i(0); i < n.items.size(); ++i)
+    {
+      mFile.write("- ");
+      write_node(n.items.at(i));
+      mFile.write("\n");
+    }
+  }
+  
+  void write_node(const Ref<Node> & n)
+  {
+    if(n.is<WordNode>()) {
+      write_word(n.as<WordNode>());
+    } else if(n.is<Space>()) {
+  	  write_space_node(n.as<Space>());
+    } else if(n.is<EndOfLine>()) {
+  	  write_eol_node(n.as<EndOfLine>());
+    } else if(n.is<GroupNode>()) {
+  	  write_group_node(n.as<GroupNode>());
+    } else if(n.is<BoldNode>()) {
+  	  write_bold_node(n.as<BoldNode>());
+    } else if(n.is<Type>()) {
+  	  write_type_node(n.as<Type>());
+    } else if(n.is<CodeBlock>()) {
+  	  write_code_block(n.as<CodeBlock>());
+    } else if(n.is<InlineCode>()) {
+  	  write_inline_code(n.as<InlineCode>());
+    } else if(n.is<Link>()) {
+  	  write_link(n.as<Link>());
+    } else if (n.is<ListNode>()) {
+      write_list(n.as<ListNode>());
+    }
+  }
+  
+  void write_class(Class & c)
+  {
+    mFile.write("# " + c.name + "\n\n");
+    
+    if(!c.brief.isNull())
+    {
+      mFile.write("**Brief:** ");
+      write_node(c.brief);
+    }
+    
+    mFile.write("\n\n");
+    
+    write_node(c.description);
+    
+    mFile.write("\n\n");
+    
+    for(int i(0); i < c.functions.size(); ++i)
+    {
+  	  write_mem_fun(c.functions.at(i));
+    }
+  }
+  
+  void write_mem_fun(Function & fun)
+  {
+    mFile.write("## ");
+    write_node(fun.name);
+    mFile.write("\n\n");
+  
+    if(!fun.brief.isNull())
+    {
+      mFile.write("**Brief:** ");
+      write_node(fun.brief);
+  	  mFile.write("\n\n");
+    }
+    
+    if(!fun.params.isEmpty())
+    {
+  	  mFile.write("**Parameters:** \n");
+  	  for(int i(0); i < fun.params.size(); ++i)
+  	  {
+        mFile.write("- ");
+  	    write_node(fun.params.at(i));
+  	    mFile.write("\n");
+  	  }
+  	  mFile.write("\n");
+    }
+    
+    if(!fun.returns.isNull())
+    {
+  	  mFile.write("**Returns:** ");
+  	  write_node(fun.returns);
+  	  mFile.write("\n");
+    }
+    
+    if(!fun.description.isNull())
+    {
+  	  write_node(fun.description); 
+    }
+    
+    
+    mFile.write("\n\n");
+  }
+};
 
 namespace output
 {
@@ -176,21 +210,8 @@ void markdown(const String & outdir)
 {
   print("Outputing Markdown into :" + outdir);
 
-  
-  for(int i(0); i < state.classes.size(); ++i)
-  {  
-    Class & cla = state.classes.at(i);
-    File f{outdir + "/" + cla.name + ".md"};
-    if(!f.open(File::WriteOnly))
-    {
-      print("Could not open output file");
-      continue;
-    }
-	  
-    write_class(f, cla);
-	f.close();
-  }
-  
+  MarkdownOutput md{outdir};
+  md.process();
 }
 
 } // namespace output
