@@ -110,7 +110,7 @@ bool Value::isRef() const
     return false;
 
   script::Class cla = engine()->getClass(impl().type());
-  return cla.instanceOf() == engine()->getTemplate(script::Engine::RefTemplate);
+  return cla.isTemplateInstance() && cla.instanceOf() == engine()->getTemplate(script::Engine::RefTemplate);
 }
 
 script::Value Value::getRef() const
@@ -124,7 +124,7 @@ bool Value::isList() const
     return false;
 
   script::Class cla = engine()->getClass(impl().type());
-  return cla.instanceOf() == engine()->getTemplate(script::Engine::ListTemplate);
+  return cla.isTemplateInstance() && cla.instanceOf() == engine()->getTemplate(script::Engine::ListTemplate);
 }
 
 QList<dex::Value> Value::getList() const

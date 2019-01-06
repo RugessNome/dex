@@ -122,6 +122,7 @@ protected:
 
   /* Objects */
   dex::Value eval_value(const tnodes::Value & val);
+  dex::Value eval_variable(const tnodes::Variable & var);
   dex::Value eval_memberaccess(const tnodes::MemberAccess & ma);
   dex::Value eval_arrayaccess(const tnodes::ArrayAccess & aa);
   dex::Value eval_binop(const tnodes::BinOp & binop);
@@ -191,6 +192,8 @@ dex::Value Renderer::eval(const std::shared_ptr<tnodes::Object> & obj)
 {
   if (obj->is<tnodes::Value>())
     return eval_value(obj->as<tnodes::Value>());
+  else if (obj->is<tnodes::Variable>())
+    return eval_variable(obj->as<tnodes::Variable>());
   else if (obj->is<tnodes::MemberAccess>())
     return eval_memberaccess(obj->as<tnodes::MemberAccess>());
   else if (obj->is<tnodes::ArrayAccess>())
@@ -199,11 +202,18 @@ dex::Value Renderer::eval(const std::shared_ptr<tnodes::Object> & obj)
     return eval_binop(obj->as<tnodes::BinOp>());
   else if (obj->is<tnodes::Pipe>())
     return eval_pipe(obj->as<tnodes::Pipe>());
+  else
+    throw std::runtime_error{ "Not implemented" };
 }
 
 dex::Value Renderer::eval_value(const tnodes::Value & val)
 {
   return val.value;
+}
+
+dex::Value Renderer::eval_variable(const tnodes::Variable & var)
+{
+  return context->variables().value(var.name, dex::Value{});
 }
 
 dex::Value Renderer::eval_memberaccess(const tnodes::MemberAccess & ma)
@@ -484,6 +494,11 @@ dex::Value Renderer::newInt(int n)
 
 Template::Template(const QList<std::shared_ptr<TemplateNode>> & nodes)
   : mNodes(nodes)
+{
+
+}
+
+Template::~Template()
 {
 
 }

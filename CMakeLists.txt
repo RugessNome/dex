@@ -95,3 +95,9 @@ target_link_libraries(dex processor)
 add_custom_command(TARGET dex POST_BUILD
                    COMMAND ${CMAKE_COMMAND} -E copy_directory
                        ${CMAKE_SOURCE_DIR}/profiles $<TARGET_FILE_DIR:dex>/profiles)
+
+##################################################################
+###### tests
+##################################################################
+
+add_subdirectory(tests)
