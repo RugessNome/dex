@@ -4,24 +4,24 @@
 
 #include "dex/dex.h"
 
-#include "dex/list.h"
-#include "dex/ref.h"
+#include "dex/core/list.h"
+#include "dex/core/ref.h"
 
-#include "dex/endoflinenode.h"
-#include "dex/groupnode.h"
-#include "dex/spacenode.h"
-#include "dex/wordnode.h"
+#include "dex/processor/endoflinenode.h"
+#include "dex/processor/groupnode.h"
+#include "dex/processor/spacenode.h"
+#include "dex/processor/wordnode.h"
 
-#include "dex/bracketsarguments.h"
-#include "dex/file.h"
-#include "dex/variant.h"
+#include "dex/processor/bracketsarguments.h"
+#include "dex/api/file.h"
+#include "dex/core/variant.h"
 
-#include "dex/rootenvironment.h"
-#include "dex/builtincommand.h"
+#include "dex/processor/rootenvironment.h"
+#include "dex/processor/builtincommand.h"
 
-#include "dex/parser.h"
+#include "dex/processor/parser.h"
 
-#include "dex/output.h"
+#include "dex/processor/output.h"
 
 #include <script/class.h>
 #include <script/enum.h>

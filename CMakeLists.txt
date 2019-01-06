@@ -17,30 +17,79 @@ set(CMAKE_AUTOMOC ON)
 find_package(Qt5Core)
 find_package(Qt5Widgets)
 
-file(GLOB_RECURSE SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
-file(GLOB_RECURSE HDR_FILES 
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
-)
-add_executable(dex ${HDR_FILES} ${SRC_FILES})
-target_include_directories(dex PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
-target_link_libraries(dex Qt5::Core)
-target_link_libraries(dex Qt5::Widgets)
-
-foreach(_source IN ITEMS ${HDR_FILES} ${SRC_FILES})
-    get_filename_component(_source_path "${_source}" PATH)
-    file(RELATIVE_PATH _source_path_rel "${CMAKE_CURRENT_SOURCE_DIR}" "${_source_path}")
-    string(REPLACE "/" "\\" _group_path "${_source_path_rel}")
-    source_group("${_group_path}" FILES "${_source}")
-endforeach()
+##################################################################
+###### libscript
+##################################################################
 
 add_subdirectory(lib)
-#add_subdirectory(examples)
 
-add_dependencies(dex libscript)
-target_include_directories(dex PUBLIC "${LIBSCRIPT_PROJECT_DIR}/include")
-target_include_directories(dex PUBLIC "lib/libscript")
-target_link_libraries(dex libscript)
+##################################################################
+###### core
+##################################################################
+
+file(GLOB_RECURSE CORE_SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/core/*.cpp)
+file(GLOB_RECURSE CORE_HDR_FILES 
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/dex/core/*.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/core/*.h
+)
+add_library(core STATIC ${CORE_HDR_FILES} ${CORE_SRC_FILES})
+target_include_directories(core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_include_directories(core PUBLIC "${LIBSCRIPT_PROJECT_DIR}/include")
+target_include_directories(core PUBLIC "lib/libscript")
+target_link_libraries(core Qt5::Core)
+target_link_libraries(core Qt5::Widgets)
+target_link_libraries(core libscript)
+
+##################################################################
+###### api
+##################################################################
+
+file(GLOB_RECURSE API_SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/api/*.cpp)
+file(GLOB_RECURSE API_HDR_FILES 
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/dex/api/*.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/api/*.h
+)
+add_library(api STATIC ${API_HDR_FILES} ${API_SRC_FILES})
+add_dependencies(api core)
+target_link_libraries(api core)
+
+##################################################################
+###### liquid
+##################################################################
+
+file(GLOB_RECURSE LIQUID_SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/liquid/*.cpp)
+file(GLOB_RECURSE LIQUID_HDR_FILES 
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/dex/liquid/*.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/liquid/*.h
+)
+add_library(liquid STATIC ${LIQUID_HDR_FILES} ${LIQUID_SRC_FILES})
+add_dependencies(liquid core)
+target_link_libraries(liquid core)
+
+##################################################################
+###### processor
+##################################################################
+
+file(GLOB_RECURSE PROCESSOR_SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/processor/*.cpp)
+file(GLOB_RECURSE PROCESSOR_HDR_FILES 
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/dex/processor/*.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/processor/*.h
+)
+
+add_library(processor STATIC ${PROCESSOR_HDR_FILES} ${PROCESSOR_SRC_FILES})
+add_dependencies(processor api)
+target_link_libraries(processor api)
+add_dependencies(processor liquid)
+target_link_libraries(processor liquid)
+
+##################################################################
+###### dex
+##################################################################
+
+add_executable(dex "include/dex/dex.h" "src/dex.cpp" "src/main.cpp")
+target_include_directories(dex PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+add_dependencies(dex processor)
+target_link_libraries(dex processor)
 
 #file(COPY "profiles" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 add_custom_command(TARGET dex POST_BUILD

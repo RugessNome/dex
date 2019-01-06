@@ -7,7 +7,7 @@
 
 #include <QApplication>
 
-#include "dex/state.h"
+#include "dex/processor/state.h"
 
 #include <script/classtemplate.h>
 #include <script/engine.h>

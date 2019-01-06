@@ -8,8 +8,6 @@
 #include "dex/liquid/context.h"
 #include "dex/liquid/liquidparser.h"
 
-#include "dex/command.h"
-
 #include <script/class.h>
 #include <script/engine.h>
 

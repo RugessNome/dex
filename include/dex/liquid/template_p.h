@@ -5,7 +5,7 @@
 #ifndef DEX_LIQUID_TEMPLATE_P_H
 #define DEX_LIQUID_TEMPLATE_P_H
 
-#include "dex/value.h"
+#include "dex/core/value.h"
 
 #include <QList>
 #include <QString>

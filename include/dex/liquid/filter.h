@@ -5,7 +5,7 @@
 #ifndef DEX_LIQUID_FILTER_H
 #define DEX_LIQUID_FILTER_H
 
-#include "dex/value.h"
+#include "dex/core/value.h"
 
 namespace dex
 {

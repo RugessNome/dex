@@ -5,7 +5,7 @@
 #ifndef DEX_LIQUID_CONTEXT_H
 #define DEX_LIQUID_CONTEXT_H
 
-#include "dex/value.h"
+#include "dex/core/value.h"
 #include "dex/liquid/filter.h"
 
 #include <QMap>
