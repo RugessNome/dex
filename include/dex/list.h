@@ -7,10 +7,15 @@
 
 #include <script/namespace.h>
 
+#include <QList>
+
 namespace dex
 {
 
+class Value;
+
 void register_list_template(script::Namespace ns);
+QList<dex::Value> & list_cast(const script::Value & val);
 
 } // namespace dex
 

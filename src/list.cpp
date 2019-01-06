@@ -506,25 +506,14 @@ script::Class list_template_instantiate(script::ClassTemplateInstanceBuilder & b
   const Type element_type = builder.arguments().front().type;
 
   {
-    auto typeinfo = std::make_shared<ValueTypeInfo>();
-    typeinfo->element_type = element_type;
-
-    Engine *engine = builder.getTemplate().engine();
-    const Scope scp = element_type.isObjectType() ? Scope{ engine->getClass(element_type) } : Scope{ engine->rootNamespace() };
-    
-    NameLookup lookup = NameLookup::resolve(AssignmentOperator, scp);
-    OverloadResolution resol = OverloadResolution::New(engine);
-    if (!resol.process(lookup.functions(), { Type::ref(element_type), Type::cref(element_type) }))
-      throw TemplateInstantiationError{ "List<T> : T must be assignable" };
-    typeinfo->assignment = resol.selectedOverload();
-
-    lookup = NameLookup::resolve(EqualOperator, scp);
-    resol = OverloadResolution::New(engine);
-    if (!resol.process(lookup.functions(), { Type::cref(element_type), Type::cref(element_type) }))
-      throw TemplateInstantiationError{ "List<T> : T must have operator==" };
-    typeinfo->eq = resol.selectedOverload();
-
-    builder.setData(typeinfo);
+    try
+    {
+      builder.setData(ValueTypeInfo::get(element_type, builder.getTemplate().engine()));
+    }
+    catch (std::runtime_error & ex)
+    {
+      throw TemplateInstantiationError{ std::string("List<T> : ") + ex.what() };
+    }
   }
 
   Class list = builder.get();
