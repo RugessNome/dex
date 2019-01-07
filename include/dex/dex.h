@@ -18,7 +18,6 @@
 namespace dex
 {
 class Environment;
-class Parser;
 class Output;
 } // namespace dex
 
@@ -56,7 +55,6 @@ private:
   void register_span_types();
   void load_nodes();
   void load_state();
-  void process(dex::Parser & parser, const QDir & dir);
   void load_outputs();
 
 private:

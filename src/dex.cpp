@@ -19,7 +19,7 @@
 #include "dex/processor/rootenvironment.h"
 #include "dex/processor/builtincommand.h"
 
-#include "dex/processor/parser.h"
+#include "dex/processor/documentprocessor.h"
 
 #include "dex/processor/output.h"
 
@@ -375,10 +375,6 @@ void Application::load_state()
 
 void Application::process(const QString & dirPath)
 {
-  //dex::Parser parser{ mState, mRootEnvironment };
-  //QDir dir{ dirPath };
-  //process(parser, dir);
-
   dex::DocumentProcessor processor{ mState, mRootEnvironment };
   QDir dir{ dirPath };
   processor.process(dir);
@@ -451,12 +447,6 @@ QDir Application::activeProfileDir() const
   d.cd(activeProfile());
   return d;
 }
-
-void Application::process(dex::Parser & parser, const QDir & dir)
-{
-  parser.process(dir);
-}
-
 
 static void load_outputs_scripts_recur(Application & app, QList<script::Script> & scripts, const QDir & dir)
 {

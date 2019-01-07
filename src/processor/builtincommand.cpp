@@ -6,7 +6,7 @@
 
 #include "dex/processor/groupnode.h"
 #include "dex/processor/node.h"
-#include "dex/processor/parser.h"
+#include "dex/processor/documentprocessor.h"
 
 #include <QDebug>
 
@@ -64,20 +64,6 @@ QString BeginCommand::getEnvironmentName(const QList<NodeRef> & args)
   return env_name;
 }
 
-QSharedPointer<Environment> BeginCommand::get_environment(Parser *parser, const QList<NodeRef> & args)
-{
-  QString env_name = getEnvironmentName(args);
-
-  auto env = parser->getEnvironment(env_name);
-  if (env == nullptr)
-  {
-    qDebug() << "No such environment " << env_name;
-    throw std::runtime_error{ "No such environment" };
-  }
-
-  return env;
-}
-
 QSharedPointer<Environment> BeginCommand::get_environment(DocumentProcessor *processor, const QList<NodeRef> & args)
 {
   QString env_name = getEnvironmentName(args);
@@ -90,16 +76,6 @@ QSharedPointer<Environment> BeginCommand::get_environment(DocumentProcessor *pro
   }
 
   return env;
-}
-
-NodeRef BeginCommand::invoke(Parser *parser, const BracketsArguments & brackets, const QList<NodeRef> & arguments)
-{
-  auto env = get_environment(parser, arguments);
-
-  env->enter(brackets);
-  parser->enter(env);
-  
-  return NodeRef{};
 }
 
 NodeRef BeginCommand::invoke(DocumentProcessor *processor, const BracketsArguments & brackets, const QList<NodeRef> & arguments)
@@ -119,16 +95,6 @@ EndCommand::EndCommand()
 
 }
 
-NodeRef EndCommand::invoke(Parser *parser, const BracketsArguments & brackets, const QList<NodeRef> & arguments)
-{
-  auto env = BeginCommand::get_environment(parser, arguments);
-
-  env->leave();
-  parser->leave();
-
-  return NodeRef{};
-}
-
 NodeRef EndCommand::invoke(DocumentProcessor *processor, const BracketsArguments & brackets, const QList<NodeRef> & arguments)
 {
   auto env = BeginCommand::get_environment(processor, arguments);
@@ -144,28 +110,6 @@ InputCommand::InputCommand()
   : BuiltinCommand("input", 1, CommandSpan::Word, false)
 {
 
-}
-
-NodeRef InputCommand::invoke(Parser *parser, const BracketsArguments & brackets, const QList<NodeRef> & arguments)
-{
-  QString file;
-  if (arguments.first().isWord())
-  {
-    file = arguments.first().toString();
-  }
-  else if (arguments.first().isGroup())
-  {
-    file = arguments.first().getNode().asGroupNode().toString();
-  }
-  else
-  {
-    qDebug() << "Invalid file for input command";
-    throw std::runtime_error{ "Input command : invalid file" };
-  }
-
-  parser->input(file);
-
-  return NodeRef{};
 }
 
 NodeRef InputCommand::invoke(DocumentProcessor *processor, const BracketsArguments & brackets, const QList<NodeRef> & arguments)
