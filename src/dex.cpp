@@ -375,9 +375,13 @@ void Application::load_state()
 
 void Application::process(const QString & dirPath)
 {
-  dex::Parser parser{ mState, mRootEnvironment };
+  //dex::Parser parser{ mState, mRootEnvironment };
+  //QDir dir{ dirPath };
+  //process(parser, dir);
+
+  dex::DocumentProcessor processor{ mState, mRootEnvironment };
   QDir dir{ dirPath };
-  process(parser, dir);
+  processor.process(dir);
 }
 
 void Application::output(const QString & outputname, const QString & dir)

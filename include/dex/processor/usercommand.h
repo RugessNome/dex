@@ -29,6 +29,7 @@ public:
   bool acceptsBracketArguments() const override;
 
   NodeRef invoke(Parser *, const BracketsArguments & brackets, const QList<NodeRef> & arguments) override;
+  NodeRef invoke(DocumentProcessor *, const BracketsArguments & brackets, const QList<NodeRef> & arguments) override;
 
   static bool check(const script::Prototype & proto);
   static bool check(const script::Function & f);

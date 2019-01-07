@@ -131,6 +131,128 @@ private:
   QStack<QSharedPointer<Environment>> mEnvironments;
 };
 
+
+class InputStream
+{
+public:
+  InputStream(const QString & doc);
+  InputStream(const InputStream & other) = default;
+
+  void inject(const QString & content);
+
+  QChar peekChar() const;
+  inline QChar nextChar() const { return peekChar(); }
+  QChar readChar();
+
+  QStringRef peek(int n) const;
+  QStringRef peekLine() const;
+
+  bool read(const QString & text);
+
+  void discard(int n);
+
+  struct Document
+  {
+    int pos;
+    QString content;
+
+    inline int length() const { return content.length(); }
+  };
+
+  Document & currentDocument();
+  const Document & currentDocument() const;
+  int currentPos() const;
+  bool atEnd() const;
+
+  inline int stackSize() const { return mDocuments.size(); }
+
+  InputStream & operator=(const QString & str);
+
+private:
+  QStack<Document> mDocuments;
+};
+
+class StreamTokenizer
+{
+public:
+  StreamTokenizer(InputStream & is);
+
+  inline InputStream & stream() const { return *mStream; }
+
+  struct Token
+  {
+    enum Kind {
+      EscapeCharacter = 0,
+      BeginGroup,
+      EndGroup,
+      EndOfLine,
+      Space,
+      Word,
+      Other,
+    };
+
+    Kind kind;
+    QString text;
+  };
+
+  QChar EscapeCharacter;
+
+  Token read();
+
+protected:
+  void readChar();
+  bool isPunctuatorOrSpace(const QChar & c) const;
+  bool readSpaces();
+  Token produce(Token::Kind k);
+
+private:
+  InputStream *mStream;
+  QSet<QChar> mPunctuators;
+  QString mBuffer;
+};
+
+class DocumentProcessor
+{
+public:
+  DocumentProcessor(dex::State & state, const QSharedPointer<Environment> & root);
+
+  void process(const QDir & directory);
+
+  QSharedPointer<Environment> getEnvironment(const QString & name) const;
+  void enter(const QSharedPointer<Environment> & env);
+  void leave();
+
+  void input(const QString & filename);
+
+protected:
+  NodeRef read();
+  NodeRef readArgument();
+  NodeRef readLineArgument();
+  NodeRef readParagraphArgument();
+  NodeRef createNode(const StreamTokenizer::Token & tok);
+  NodeRef readGroup(const StreamTokenizer::Token & tok);
+  BracketsArguments readBracketsArguments();
+  QSharedPointer<Command> findCommand(const QString & name) const;
+  NodeRef readCommand(const StreamTokenizer::Token & command);
+
+  void processFile(const QString & path);
+
+  bool seekBlock();
+  bool atBlockEnd() const;
+  void beginLine();
+
+  script::Engine* engine() const;
+
+private:
+  InputStream mInputStream;
+  StreamTokenizer mTokenizer;
+  QPair<QString, QString> mBlockDelimiter;
+  QStringList mIgnoredSequences;
+  dex::State mState;
+  QDir mCurrentDir;
+  QStack<QSharedPointer<Environment>> mEnvironments;
+};
+
 } // namespace dex
 
 #endif // DEX_PARSER_H

@@ -145,6 +145,47 @@ NodeRef UserCommand::invoke(Parser*, const BracketsArguments & brackets, const Q
   return result;
 }
 
+NodeRef UserCommand::invoke(DocumentProcessor*, const BracketsArguments & brackets, const QList<NodeRef> & arguments)
+{
+  if (parameterCount() != arguments.size())
+    throw std::runtime_error{ "Invalid argument count" };
+
+  script::Engine *e = mFunction.engine();
+
+  std::vector<script::Value> values;
+
+  int proto_offset = 0;
+
+  if (!mObject.isNull())
+  {
+    ++proto_offset;
+    values.push_back(mObject);
+  }
+
+  if (acceptsBracketArguments())
+  {
+    values.push_back(brackets.expose(e));
+    ++proto_offset;
+  }
+
+  int span_offset = (span() != CommandSpan::NotApplicable) ? 1 : 0;
+
+  for (size_t i(proto_offset); i < mFunction.prototype().size() - span_offset; ++i)
+    values.push_back(convert(arguments.at(i - proto_offset), mFunction.parameter(i)));
+
+  auto command_span = span();
+  if (command_span != CommandSpan::NotApplicable)
+    values.push_back(CommandSpan::expose(command_span, e));
+
+  script::Value val = e->call(mFunction, values);
+  NodeRef result{ std::move(val) };
+
+  for (const auto & v : values)
+    e->destroy(v);
+
+  return result;
+}
+
 script::Value UserCommand::convert(const NodeRef & node, const script::Type & type)
 {
   script::Engine *e = mFunction.engine();

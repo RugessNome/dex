@@ -39,9 +39,12 @@ class BeginCommand : public BuiltinCommand
 public:
   BeginCommand();
 
+  static QString getEnvironmentName(const QList<NodeRef> & args);
   static QSharedPointer<Environment> get_environment(Parser *parser, const QList<NodeRef> & args);
+  static QSharedPointer<Environment> get_environment(DocumentProcessor *processor, const QList<NodeRef> & args);
 
   NodeRef invoke(Parser *parser, const BracketsArguments & brackets, const QList<NodeRef> & arguments) override;
+  NodeRef invoke(DocumentProcessor *processor, const BracketsArguments & brackets, const QList<NodeRef> & arguments) override;
 };
 
 class EndCommand : public BuiltinCommand
@@ -50,6 +53,7 @@ public:
   EndCommand();
 
   NodeRef invoke(Parser *parser, const BracketsArguments & brackets, const QList<NodeRef> & arguments) override;
+  NodeRef invoke(DocumentProcessor *processor, const BracketsArguments & brackets, const QList<NodeRef> & arguments) override;
 };
 
 class InputCommand : public BuiltinCommand
@@ -58,6 +62,7 @@ public:
   InputCommand();
 
   NodeRef invoke(Parser *parser, const BracketsArguments & brackets, const QList<NodeRef> & arguments) override;
+  NodeRef invoke(DocumentProcessor *processor, const BracketsArguments & brackets, const QList<NodeRef> & arguments) override;
 };
 
 } // namespace dex

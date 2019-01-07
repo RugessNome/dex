@@ -22,6 +22,7 @@ namespace dex
 class BracketsArguments;
 class NodeRef;
 class Parser;
+class DocumentProcessor;
 
 class Command
 {
@@ -45,6 +46,7 @@ public:
   static QSharedPointer<Command> build(const script::Class & cla);
 
   virtual NodeRef invoke(Parser *parser, const BracketsArguments & brackets, const QList<NodeRef> & arguments) = 0;
+  virtual NodeRef invoke(DocumentProcessor *processor, const BracketsArguments & brackets, const QList<NodeRef> & arguments) = 0;
 };
 
 } // namespace dex
