@@ -27,6 +27,7 @@ public:
   
   inline QMap<QString, std::shared_ptr<Filter>> & filters() { return mFilters; }
   void addFilter(Filter *f);
+  void addFilter(std::shared_ptr<Filter> f);
 
   template<typename T>
   void addFilter()
@@ -34,8 +35,11 @@ public:
     return addFilter(new T);
   }
 
+  int loadFilters(const QString & ns);
+
   QString stringify(const dex::Value & value);
   inline std::vector<script::Function> & stringifyFunctions() { return mStringifyFunctions; }
+  int loadStringConverters(const QString & ns);
 
   enum Flag {
     NoFlags = 0,

@@ -20,6 +20,7 @@
 #include "dex/processor/builtincommand.h"
 
 #include "dex/processor/documentprocessor.h"
+#include "dex/liquid/liquid.h"
 
 #include "dex/processor/output.h"
 
@@ -96,6 +97,8 @@ Application::Application(int & argc, char **argv)
 
   dex::Variant::register_type(mEngine.rootNamespace());
   dex::File::register_type(mEngine.rootNamespace());
+
+  dex::liquid::expose(&mEngine);
 
   mSettings = new QSettings("dex.ini", QSettings::IniFormat, this);
 }

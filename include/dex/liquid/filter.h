@@ -23,6 +23,8 @@ public:
 
   virtual QString name() const = 0;
   virtual dex::Value invoke(const QList<dex::Value> & args, Context *context) = 0;
+
+  static std::shared_ptr<Filter> create(const script::Function & func);
 };
 
 } // namespace liquid

@@ -492,6 +492,11 @@ dex::Value Renderer::newInt(int n)
 }
 
 
+Template::Template()
+{
+
+}
+
 Template::Template(const QList<std::shared_ptr<TemplateNode>> & nodes)
   : mNodes(nodes)
 {
