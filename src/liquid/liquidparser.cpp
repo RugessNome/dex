@@ -202,6 +202,7 @@ Parser::Parser(script::Engine *e)
 QList<std::shared_ptr<liquid::TemplateNode>> Parser::parse(const QString & document)
 {
   mDocument = document;
+  mDocument.replace("\r\n", "\n");
   mPosition = 0;
   mNodes.clear();
   mStack.clear();
@@ -249,6 +250,9 @@ void Parser::readNode()
       processTag(tokens);
 
       mPosition = endpos + 2;
+
+      if (!atEnd() && document().at(position()) == '\n')
+        mPosition += 1;
     }
     else
     {
@@ -289,7 +293,7 @@ void Parser::processTag(QList<Token> & tokens)
   Token tok = tokens.takeFirst();
 
   if (tok == "assign")
-    process_tag_if(tokens);
+    process_tag_assign(tokens);
   else if (tok == "if")
     process_tag_if(tokens);
   else if (tok == "elsif")
@@ -297,7 +301,7 @@ void Parser::processTag(QList<Token> & tokens)
   else if (tok == "else")
     process_tag_else(tokens);
   else if (tok == "endif")
-    process_tag_else(tokens);
+    process_tag_endif(tokens);
   else if (tok == "for")
     process_tag_for(tokens);
   else if (tok == "break")
@@ -306,6 +310,8 @@ void Parser::processTag(QList<Token> & tokens)
     process_tag_continue(tokens);
   else if (tok == "endfor")
     process_tag_endfor(tokens);
+  else
+    throw std::runtime_error{ "Liquid template: unknown tag" };
 }
 
 std::shared_ptr<liquid::tnodes::Object> Parser::processObject(QList<Token> & tokens)

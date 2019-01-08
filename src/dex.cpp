@@ -13,7 +13,7 @@
 #include "dex/processor/wordnode.h"
 
 #include "dex/processor/bracketsarguments.h"
-#include "dex/api/file.h"
+#include "dex/api/api.h"
 #include "dex/core/variant.h"
 
 #include "dex/processor/rootenvironment.h"
@@ -36,35 +36,22 @@
 
 #include <iostream>
 
+
+namespace script
+{
+
 namespace callbacks
 {
 
-script::Value print_int(script::FunctionCall *c)
+script::Value profile_directory(script::FunctionCall *c)
 {
-  int n = c->arg(0).toInt();
-  qDebug() << n;
-  return script::Value::Void;
-}
-
-script::Value print_bool(script::FunctionCall *c)
-{
-  qDebug() << c->arg(0).toBool();
-  return script::Value::Void;
-}
-
-script::Value print_double(script::FunctionCall *c)
-{
-  qDebug() << c->arg(0).toDouble();
-  return script::Value::Void;
-}
-
-script::Value print_string(script::FunctionCall *c)
-{
-  qDebug() << c->arg(0).toString().toUtf8().data();
-  return script::Value::Void;
+  return c->engine()->newString(qApp->activeProfileDir().absolutePath());
 }
 
 } // namespace callbacks
+
+} // namespace script
+
 
 Application::CommandLineOptions::CommandLineOptions()
   : saveSettings(false)
@@ -82,23 +69,14 @@ Application::Application(int & argc, char **argv)
 
   dex::register_ref_template(mEngine.rootNamespace());
   dex::register_list_template(mEngine.rootNamespace());
-
-  mEngine.rootNamespace().newFunction("print", callbacks::print_int)
-    .params(script::Type::Int).create();
-
-  mEngine.rootNamespace().newFunction("print", callbacks::print_bool)
-    .params(script::Type::Boolean).create();
-
-  mEngine.rootNamespace().newFunction("print", callbacks::print_double)
-    .params(script::Type::Double).create();
-
-  mEngine.rootNamespace().newFunction("print", callbacks::print_string)
-    .params(script::Type::cref(script::Type::String)).create();
-
   dex::Variant::register_type(mEngine.rootNamespace());
-  dex::File::register_type(mEngine.rootNamespace());
 
+  dex::api::expose(&mEngine);
   dex::liquid::expose(&mEngine);
+
+  mEngine.rootNamespace().newFunction("profileDirectory", script::callbacks::profile_directory)
+    .returns(script::Type::String)
+    .create();
 
   mSettings = new QSettings("dex.ini", QSettings::IniFormat, this);
 }
@@ -123,8 +101,10 @@ int Application::run()
     output(outputFormat(), outputDirectory().absolutePath());
     mState.destroy();
   }
-  catch (...)
+  catch (std::runtime_error & ex)
   {
+    qDebug() << "Fatal error:" << QString(ex.what());
+    mState.destroy();
     return 1;
   }
 

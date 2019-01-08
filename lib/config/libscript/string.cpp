@@ -267,6 +267,18 @@ Value add(FunctionCall *c)
   return c->engine()->newString(self + other);
 }
 
+// String & String::operator+=(const String & other);
+Value add_assign(FunctionCall *c)
+{
+  Value that = c->thisObject();
+  auto & self = that.impl()->get_string();
+  const auto & other = c->arg(1).impl()->get_string();
+
+  self += other;
+
+  return that;
+}
+
 // charref String::operator[](int index);
 Value subscript(FunctionCall *c)
 {
@@ -402,6 +414,7 @@ void register_string_type(Class string)
   string.newOperator(AssignmentOperator, callbacks::string::operators::assign).returns(Type::ref(string.id())).params(Type::cref(string.id())).create();
 
   string.newOperator(AdditionOperator, callbacks::string::operators::add).setConst().returns(string.id()).params(Type::cref(string.id())).create();
+  string.newOperator(AdditionAssignmentOperator, callbacks::string::operators::add_assign).returns(Type::ref(string.id())).params(Type::cref(string.id())).create();
 
   string.newOperator(SubscriptOperator, callbacks::string::at).setConst().returns(Type::Char).params(Type::Int).create();
 

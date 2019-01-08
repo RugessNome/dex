@@ -144,6 +144,7 @@ protected:
 QString Renderer::process(const QList<std::shared_ptr<TemplateNode>> & nodes)
 {
   result_.clear();
+  context->runtimeFlags() = 0;
 
   for (auto n : nodes)
     process(n);

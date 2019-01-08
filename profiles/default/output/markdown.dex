@@ -4,204 +4,134 @@ import model;
 
 bool simplify_spaces = true;
 
-
-class MarkdownOutput
+namespace liquid
 {
-public:
-  String mOutputdir;
-  File mFile;
-public:
-  
-  MarkdownOutput(const String & outdir)
-    : mOutputdir(outdir)
-  {
 
+namespace markdown
+{
+
+String stringify(const Ref<Node> & n)
+{
+  if(n.is<WordNode>()) {
+    return stringify(n.as<WordNode>());
+  } else if(n.is<Space>()) {
+    return stringify(n.as<Space>());
+  } else if(n.is<EndOfLine>()) {
+    return stringify(n.as<EndOfLine>());
+  } else if(n.is<GroupNode>()) {
+    return stringify(n.as<GroupNode>());
+  } else if(n.is<BoldNode>()) {
+    return stringify(n.as<BoldNode>());
+  } else if(n.is<Type>()) {
+    return stringify(n.as<Type>());
+  } else if(n.is<CodeBlock>()) {
+    return stringify(n.as<CodeBlock>());
+  } else if(n.is<InlineCode>()) {
+    return stringify(n.as<InlineCode>());
+  } else if(n.is<Link>()) {
+    return stringify(n.as<Link>());
+  } else if (n.is<ListNode>()) {
+    return stringify(n.as<ListNode>());
   }
-  
-  ~MarkdownOutput() = default;
-  
-  void process()
+
+  return "";
+}
+
+String stringify(WordNode & n)
+{
+  return n.word;
+}
+
+String stringify(EndOfLine & n)
+{
+  return "\n";
+}
+
+String stringify(Space & n)
+{
+  if(simplify_spaces)
+    return " ";
+  else
+    return n.text;
+}
+
+String stringify(GroupNode & n)
+{
+  String result = "";
+  for(int i(0); i < n.nodes.size(); ++i)
   {
-    for(int i(0); i < state.classes.size(); ++i)
-    {  
-      Class & cla = state.classes.at(i);
-      mFile.setFileName(mOutputdir + "/" + cla.name + ".md");
-      if(!mFile.open(File::WriteOnly))
-      {
-        print("Could not open output file");
-        continue;
-      }
-	    
-      write_class(cla);
-	    mFile.close();
-    }
+    result += stringify(n.nodes.at(i));
   }
-  
-  
-  void write_word(WordNode & n)
+  return result;
+}
+
+String stringify(BoldNode & n)
+{
+  return "**" + stringify(n.argument) + "**";
+}
+
+String stringify(Type & n)
+{
+  return "`" + stringify(n.argument) + "`";
+}
+
+String stringify(CodeBlock & n)
+{
+  String result = "";
+  result += "```";
+  result += n.lang;
+  simplify_spaces = false;
+  result += stringify(n.nodes);
+  simplify_spaces = true;
+  result += "```";
+  return result;
+}
+
+String stringify(InlineCode & n)
+{
+  return "`" + stringify(n.argument) + "`";
+}
+
+String stringify(Link & n)
+{
+  return "[" + stringify(n.text) + "](" + stringify(n.url) + ")";
+}
+
+String stringify(ListNode & n)
+{
+  String result = "";
+  for (int i(0); i < n.items.size(); ++i)
   {
-    mFile.write(n.word);
+    result += "- ";
+    result += stringify(n.items.at(i));
+    result += "\n";
   }
-  
-  void write_eol_node(EndOfLine & n)
-  {
-    mFile.write("\n");
-  }
-  
-  void write_space_node(Space & n)
-  {
-    if(simplify_spaces)
-  	  mFile.write(" ");
-    else
-  	  mFile.write(n.text);
-  }
-  
-  void write_group_node(GroupNode & n)
-  {
-    for(int i(0); i < n.nodes.size(); ++i)
-    {
-      write_node(n.nodes.at(i));
-    }
-  }
-  
-  void write_bold_node(BoldNode & n)
-  {
-    mFile.write("**");
-    write_node(n.argument);
-    mFile.write("**");
-  }
-  
-  void write_type_node(Type & n)
-  {
-    mFile.write("`");
-    write_node(n.argument);
-    mFile.write("`");
-  }
-  
-  void write_code_block(CodeBlock & n)
-  {
-    mFile.write("```");
-    mFile.write(n.lang);
-    simplify_spaces = false;
-    write_node(n.nodes);
-    simplify_spaces = true;
-    mFile.write("```");
-  }
-  
-  void write_inline_code(InlineCode & n)
-  {
-    mFile.write("`");
-    write_node(n.argument);
-    mFile.write("`");
-  }
-  
-  void write_link(Link & n)
-  {
-    mFile.write("[");
-    write_node(n.text);
-    mFile.write("](");
-    write_node(n.url);
-    mFile.write(")");
-  }
-  
-  void write_list(ListNode & n)
-  {
-    for (int i(0); i < n.items.size(); ++i)
-    {
-      mFile.write("- ");
-      write_node(n.items.at(i));
-      mFile.write("\n");
-    }
-  }
-  
-  void write_node(const Ref<Node> & n)
-  {
-    if(n.is<WordNode>()) {
-      write_word(n.as<WordNode>());
-    } else if(n.is<Space>()) {
-  	  write_space_node(n.as<Space>());
-    } else if(n.is<EndOfLine>()) {
-  	  write_eol_node(n.as<EndOfLine>());
-    } else if(n.is<GroupNode>()) {
-  	  write_group_node(n.as<GroupNode>());
-    } else if(n.is<BoldNode>()) {
-  	  write_bold_node(n.as<BoldNode>());
-    } else if(n.is<Type>()) {
-  	  write_type_node(n.as<Type>());
-    } else if(n.is<CodeBlock>()) {
-  	  write_code_block(n.as<CodeBlock>());
-    } else if(n.is<InlineCode>()) {
-  	  write_inline_code(n.as<InlineCode>());
-    } else if(n.is<Link>()) {
-  	  write_link(n.as<Link>());
-    } else if (n.is<ListNode>()) {
-      write_list(n.as<ListNode>());
-    }
-  }
-  
-  void write_class(Class & c)
-  {
-    mFile.write("# " + c.name + "\n\n");
-    
-    if(!c.brief.isNull())
-    {
-      mFile.write("**Brief:** ");
-      write_node(c.brief);
-    }
-    
-    mFile.write("\n\n");
-    
-    write_node(c.description);
-    
-    mFile.write("\n\n");
-    
-    for(int i(0); i < c.functions.size(); ++i)
-    {
-  	  write_mem_fun(c.functions.at(i));
-    }
-  }
-  
-  void write_mem_fun(Function & fun)
-  {
-    mFile.write("## ");
-    write_node(fun.name);
-    mFile.write("\n\n");
-  
-    if(!fun.brief.isNull())
-    {
-      mFile.write("**Brief:** ");
-      write_node(fun.brief);
-  	  mFile.write("\n\n");
-    }
-    
-    if(!fun.params.isEmpty())
-    {
-  	  mFile.write("**Parameters:** \n");
-  	  for(int i(0); i < fun.params.size(); ++i)
-  	  {
-        mFile.write("- ");
-  	    write_node(fun.params.at(i));
-  	    mFile.write("\n");
-  	  }
-  	  mFile.write("\n");
-    }
-    
-    if(!fun.returns.isNull())
-    {
-  	  mFile.write("**Returns:** ");
-  	  write_node(fun.returns);
-  	  mFile.write("\n");
-    }
-    
-    if(!fun.description.isNull())
-    {
-  	  write_node(fun.description); 
-    }
-    
-    
-    mFile.write("\n\n");
-  }
-};
+  return result;
+}
+
+} // namespace markdown
+
+} // namespace liquid
+
+
+String read_all(const String & filename)
+{
+  File f{filename};
+  if(!f.open(File::ReadOnly))
+    return "";
+  String ret = f.readAll();
+  f.close();
+  return ret;
+}
+
+void write_file(const String & filename, const String & content)
+{
+  File f{filename};
+  if(!f.open(File::WriteOnly))
+    return;
+  f.write(content);
+  f.close();
+}
 
 namespace output
 {
@@ -209,9 +139,19 @@ namespace output
 void markdown(const String & outdir)
 {
   print("Outputing Markdown into :" + outdir);
+  
+  liquid::Context context;
+  context.loadStringConverters("liquid::markdown");
 
-  MarkdownOutput md{outdir};
-  md.process();
+  liquid::Template tmplt = liquid::parse(read_all(profileDirectory() + "/output/template-class.md"));
+
+  for(int i(0); i < state.classes.size(); ++i)
+  {
+    Class & cla = state.classes.at(i);
+    context.expose("class", state.classes.at(i));
+      
+    write_file(outdir + "/" + cla.name + ".md", tmplt.render(context));
+  }
 }
 
 } // namespace output
