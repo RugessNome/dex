@@ -101,7 +101,12 @@ private:
 class DocumentProcessor
 {
 public:
-  DocumentProcessor(dex::State & state, const QSharedPointer<Environment> & root);
+  DocumentProcessor();
+
+  inline dex::State & state() const { return *mState; }
+  void setState(dex::State & state);
+
+  QSharedPointer<Environment> root() const;
 
   void process(const QDir & directory);
 
@@ -110,6 +115,11 @@ public:
   void leave();
 
   void input(const QString & filename);
+
+  static void registerApi(script::Engine *e);
+
+  void setBlockDelimiters(const QString & start, const QString & end);
+  void addIgnoredSequence(const QString & val);
 
 protected:
   NodeRef read();
@@ -135,7 +145,7 @@ private:
   StreamTokenizer mTokenizer;
   QPair<QString, QString> mBlockDelimiter;
   QStringList mIgnoredSequences;
-  dex::State mState;
+  dex::State *mState;
   QDir mCurrentDir;
   QStack<QSharedPointer<Environment>> mEnvironments;
 };

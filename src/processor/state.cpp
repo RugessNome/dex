@@ -32,7 +32,9 @@ State State::create(script::Engine *e)
   for (const auto & f : state_class.memberFunctions())
   {
     /// TODO: be a little bit more precise about what is expected...
-    if (f.name() == "beginFile" && f.returnType() == script::Type::Void)
+    if (f.name() == "init" && f.returnType() == script::Type::Void && f.prototype().count() == 1)
+      ret.mInit = f;
+    else if (f.name() == "beginFile" && f.returnType() == script::Type::Void)
       ret.mBeginFile = f;
     else if (f.name() == "endFile" && f.returnType() == script::Type::Void)
       ret.mEndFile = f;
@@ -44,7 +46,7 @@ State State::create(script::Engine *e)
       ret.mDispatch = f;
   }
 
-  if (ret.mBeginFile.isNull() || ret.mEndFile.isNull() || ret.mBeginBlock.isNull() || ret.mEndBlock.isNull() || ret.mDispatch.isNull())
+  if (ret.mInit.isNull() || ret.mBeginFile.isNull() || ret.mEndFile.isNull() || ret.mBeginBlock.isNull() || ret.mEndBlock.isNull() || ret.mDispatch.isNull())
   {
     qDebug() << "State class does not define some required members";
     throw std::runtime_error{ "State class does not define some required members" };
@@ -53,6 +55,11 @@ State State::create(script::Engine *e)
   return ret;
 }
 
+void State::init()
+{
+  script::Engine *e = engine();
+  e->call(mInit, { mValue });
+}
 
 void State::beginFile(const QString & path)
 {

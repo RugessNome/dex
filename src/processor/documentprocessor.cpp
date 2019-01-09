@@ -5,9 +5,11 @@
 #include "dex/processor/documentprocessor.h"
 
 #include "dex/processor/bracketsarguments.h"
+#include "dex/processor/builtincommand.h"
 #include "dex/processor/command.h"
 #include "dex/processor/environment.h"
 #include "dex/processor/node.h"
+#include "dex/processor/rootenvironment.h"
 
 #include <script/engine.h>
 #include <script/namespace.h>
@@ -168,15 +170,29 @@ StreamTokenizer::Token StreamTokenizer::produce(Token::Kind k)
 }
 
 
-DocumentProcessor::DocumentProcessor(dex::State & state, const QSharedPointer<Environment> & root)
+DocumentProcessor::DocumentProcessor()
   : mInputStream(QString())
   , mTokenizer(mInputStream)
-  , mState(state)
 {
+  auto root = QSharedPointer<dex::RootEnvironment>::create();
+  root->commands.append(QSharedPointer<dex::BeginCommand>::create());
+  root->commands.append(QSharedPointer<dex::EndCommand>::create());
+  root->commands.append(QSharedPointer<dex::InputCommand>::create());
+
   mEnvironments.push(root);
 
-  mBlockDelimiter = QPair<QString, QString>("/*!", "*/");
-  mIgnoredSequences << "* " << "*" << " * " << " *";
+  mBlockDelimiter = QPair<QString, QString>("/*!!", "*/");
+  //mIgnoredSequences << "* " << "*" << " * " << " *";
+}
+
+void DocumentProcessor::setState(dex::State & state)
+{
+  mState = &state;
+}
+
+QSharedPointer<Environment> DocumentProcessor::root() const
+{
+  return mEnvironments.first();
 }
 
 void DocumentProcessor::process(const QDir & directory)
@@ -239,6 +255,23 @@ void DocumentProcessor::input(const QString & filename)
   f.close();
 
   mInputStream.inject(content);
+}
+
+void DocumentProcessor::registerApi(script::Engine *e)
+{
+  dex::CommandSpan::register_span_types(e->rootNamespace());
+  dex::Command::registerCommandType(e);
+  dex::BracketsArguments::register_type(e->rootNamespace());
+}
+
+void DocumentProcessor::setBlockDelimiters(const QString & start, const QString & end)
+{
+  mBlockDelimiter = QPair<QString, QString>(start, end);
+}
+
+void DocumentProcessor::addIgnoredSequence(const QString & val)
+{
+  mIgnoredSequences << val;
 }
 
 NodeRef DocumentProcessor::read()
@@ -456,23 +489,23 @@ void DocumentProcessor::processFile(const QString & path)
     f.close();
   }
 
-  mState.beginFile(path);
+  mState->beginFile(path);
 
   while (seekBlock())
   {
-    mState.beginBlock();
+    mState->beginBlock();
 
     while (!atBlockEnd())
     {
       NodeRef node = read();
       if (!node.isNull())
-        mState.dispatch(node);
+        mState->dispatch(node);
     }
 
-    mState.endBlock();
+    mState->endBlock();
   }
 
-  mState.endFile();
+  mState->endFile();
 }
 
 bool DocumentProcessor::seekBlock()
@@ -520,7 +553,7 @@ void DocumentProcessor::beginLine()
 
 script::Engine* DocumentProcessor::engine() const
 {
-  return mState.engine();
+  return mState->engine();
 }
 
 } // namespace dex

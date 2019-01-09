@@ -33,6 +33,8 @@ public:
 
   inline script::Engine* engine() const { return mValue.engine(); }
 
+  void init();
+
   void beginFile(const QString & path);
   void endFile();
 
@@ -50,6 +52,7 @@ public:
 
 private:
   script::Value mValue;
+  script::Function mInit;
   script::Function mBeginFile;
   script::Function mEndFile;
   script::Function mBeginBlock;

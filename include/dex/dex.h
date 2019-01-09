@@ -17,6 +17,7 @@
 
 namespace dex
 {
+class DocumentProcessor;
 class Environment;
 class Output;
 } // namespace dex
@@ -28,7 +29,7 @@ class Application : public QApplication
   Q_OBJECT
 public:
   Application(int & argc, char **argv);
-  ~Application() = default;
+  ~Application();
 
   inline script::Engine * scriptEngine() { return &mEngine; }
 
@@ -49,10 +50,11 @@ public:
 
   QDir activeProfileDir() const;
 
+  dex::DocumentProcessor* documentProcessor();
+
 private:
   void parserCommandLineArgs();
 
-  void register_span_types();
   void load_nodes();
   void load_state();
   void load_outputs();
@@ -75,7 +77,7 @@ private:
 
   CommandLineOptions mCliOptions;
 
-  QSharedPointer<dex::Environment> mRootEnvironment;
+  std::unique_ptr<dex::DocumentProcessor> mDocumentProcessor;
   QList<QSharedPointer<dex::Output>> mOutputs;
   QSettings *mSettings;
 };

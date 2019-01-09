@@ -16,15 +16,16 @@
 #include "dex/api/api.h"
 #include "dex/core/variant.h"
 
-#include "dex/processor/rootenvironment.h"
-#include "dex/processor/builtincommand.h"
-
 #include "dex/processor/documentprocessor.h"
+#include "dex/processor/rootenvironment.h"
+
 #include "dex/liquid/liquid.h"
 
 #include "dex/processor/output.h"
 
 #include <script/class.h>
+#include <script/classbuilder.h>
+#include <script/destructorbuilder.h>
 #include <script/enum.h>
 #include <script/functionbuilder.h>
 #include <script/interpreter/executioncontext.h>
@@ -43,9 +44,29 @@ namespace script
 namespace callbacks
 {
 
+script::Value dummy(script::FunctionCall *c)
+{
+  return script::Value::Void;
+}
+
 script::Value profile_directory(script::FunctionCall *c)
 {
   return c->engine()->newString(qApp->activeProfileDir().absolutePath());
+}
+
+script::Value set_block_delimiters(script::FunctionCall *c)
+{
+  QString left = c->arg(1).toString();
+  QString right = c->arg(2).toString();
+  qApp->documentProcessor()->setBlockDelimiters(left, right);
+  return script::Value::Void;
+}
+
+script::Value add_ignored_sequence(script::FunctionCall *c)
+{
+  QString value = c->arg(1).toString();
+  qApp->documentProcessor()->addIgnoredSequence(value);
+  return script::Value::Void;
 }
 
 } // namespace callbacks
@@ -79,6 +100,13 @@ Application::Application(int & argc, char **argv)
     .create();
 
   mSettings = new QSettings("dex.ini", QSettings::IniFormat, this);
+
+  mDocumentProcessor.reset(new dex::DocumentProcessor{});
+}
+
+Application::~Application()
+{
+
 }
 
 static script::Script get_script(const std::vector<script::Script> & list, const std::string & path)
@@ -124,9 +152,18 @@ void Application::setup()
   scriptEngine()->setScriptExtension(".dex");
   scriptEngine()->setSearchDirectory(std::string{ activeProfileDir().absolutePath().toUtf8().data() });
 
-  register_span_types();
-  dex::Command::registerCommandType(scriptEngine());
-  dex::BracketsArguments::register_type(scriptEngine()->rootNamespace());
+  script::Class parser = scriptEngine()->rootNamespace().newClass("Parser").get();
+  parser.newDestructor(script::callbacks::dummy).create();
+  parser.newMethod("setBlockDelimiters", script::callbacks::set_block_delimiters)
+    .setConst().params(script::Type::cref(script::Type::String), script::Type::cref(script::Type::String)).create();
+  parser.newMethod("addIgnoredSequence", script::callbacks::add_ignored_sequence)
+    .setConst().params(script::Type::cref(script::Type::String)).create();
+  auto parser_value = scriptEngine()->construct(parser.id(), [](script::Value & val) -> void { });
+  scriptEngine()->manage(parser_value);
+  scriptEngine()->rootNamespace().addValue("parser_", parser_value);
+
+  dex::DocumentProcessor::registerApi(scriptEngine());
+
   load_state();
   load_nodes();
 
@@ -157,15 +194,10 @@ void Application::setup()
     scripts.push_back(s);
   }
 
-  auto root_env = QSharedPointer<dex::RootEnvironment>::create();
-  root_env->commands.append(QSharedPointer<dex::BeginCommand>::create());
-  root_env->commands.append(QSharedPointer<dex::EndCommand>::create());
-  root_env->commands.append(QSharedPointer<dex::InputCommand>::create());
-
   for (const auto & s : scripts)
-    root_env->fill(s);
+    qSharedPointerCast<dex::RootEnvironment>(mDocumentProcessor->root())->fill(s);
 
-  mRootEnvironment = root_env;
+  mState.init();
 
   load_outputs();
 }
@@ -199,11 +231,6 @@ void Application::parserCommandLineArgs()
   {
     qDebug() << "Save settings not implemented yet";
   }
-}
-
-void Application::register_span_types()
-{
-  dex::CommandSpan::register_span_types(scriptEngine()->rootNamespace());
 }
 
 static void register_node_type(Application &app, const script::Class &node)
@@ -275,7 +302,7 @@ static void register_groupnode_type(Application & app, const script::Class &grou
     throw std::runtime_error{ "One or more required member functions of GroupNode could not be found" };
 }
 
-
+/// TODO: move to Document processor
 void Application::load_nodes()
 {
   using namespace script;
@@ -358,9 +385,9 @@ void Application::load_state()
 
 void Application::process(const QString & dirPath)
 {
-  dex::DocumentProcessor processor{ mState, mRootEnvironment };
+  mDocumentProcessor->setState(mState);
   QDir dir{ dirPath };
-  processor.process(dir);
+  mDocumentProcessor->process(dir);
 }
 
 void Application::output(const QString & outputname, const QString & dir)
@@ -429,6 +456,11 @@ QDir Application::activeProfileDir() const
   QDir d = profilesDirectory();
   d.cd(activeProfile());
   return d;
+}
+
+dex::DocumentProcessor* Application::documentProcessor()
+{
+  return mDocumentProcessor.get();
 }
 
 static void load_outputs_scripts_recur(Application & app, QList<script::Script> & scripts, const QDir & dir)

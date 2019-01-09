@@ -66,6 +66,15 @@ public:
 
 protected:
 
+  void init()
+  {
+    parser_.setBlockDelimiters("/*!", "*/");
+    parser_.addIgnoredSequence("* ");
+    parser_.addIgnoredSequence("*");
+    parser_.addIgnoredSequence(" * ");
+    parser_.addIgnoredSequence(" *");
+  }
+
   void beginFile(const String & path)
   {
     print("Processing file :" + path);
