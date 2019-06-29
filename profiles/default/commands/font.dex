@@ -1,0 +1,16 @@
+
+import model.font;
+
+TextBold b(const json::Json& content, Span::Word)
+{
+  TextBold b;
+  b.content = content;
+  return b;
+}
+
+TextItalic i(const json::Json& content, Span::Word)
+{
+  TextItalic ret;
+  ret.content = content;
+  return ret;
+}

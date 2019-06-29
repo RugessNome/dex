@@ -4,8 +4,6 @@
 
 #include "dex/processor/state.h"
 
-#include "dex/processor/node.h"
-
 #include <script/class.h>
 #include <script/engine.h>
 
@@ -87,10 +85,12 @@ void State::endBlock()
   e->call(mEndBlock, { mValue });
 }
 
-void State::dispatch(const NodeRef & node)
+void State::dispatch(const json::Json& node)
 {
   script::Engine *e = engine();
-  e->call(mDispatch, { mValue, node.impl() });
+  script::Value arg = e->construct<json::Json>(node);
+  e->manage(arg);
+  e->call(mDispatch, { mValue, arg });
 }
 
 void State::destroy()

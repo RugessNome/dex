@@ -5,6 +5,7 @@
 #include "dex/api/api.h"
 
 #include "dex/api/file.h"
+#include "dex/api/liquid.h"
 #include "dex/api/print.h"
 
 #include <script/engine.h>
@@ -19,6 +20,7 @@ namespace api
 void expose(script::Engine *e)
 {
   registerPrintFunctions(e->rootNamespace());
+  registerLiquidApi(e);
   File::register_type(e->rootNamespace());
 }
 

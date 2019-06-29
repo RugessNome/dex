@@ -1,118 +1,5 @@
 
-import commands; // TODO: remove, needed for BoldNode
 import model;
-
-bool simplify_spaces = true;
-
-namespace liquid
-{
-
-namespace markdown
-{
-
-String stringify(const Ref<Node> & n)
-{
-  if(n.is<WordNode>()) {
-    return stringify(n.as<WordNode>());
-  } else if(n.is<Space>()) {
-    return stringify(n.as<Space>());
-  } else if(n.is<EndOfLine>()) {
-    return stringify(n.as<EndOfLine>());
-  } else if(n.is<GroupNode>()) {
-    return stringify(n.as<GroupNode>());
-  } else if(n.is<BoldNode>()) {
-    return stringify(n.as<BoldNode>());
-  } else if(n.is<Type>()) {
-    return stringify(n.as<Type>());
-  } else if(n.is<CodeBlock>()) {
-    return stringify(n.as<CodeBlock>());
-  } else if(n.is<InlineCode>()) {
-    return stringify(n.as<InlineCode>());
-  } else if(n.is<Link>()) {
-    return stringify(n.as<Link>());
-  } else if (n.is<ListNode>()) {
-    return stringify(n.as<ListNode>());
-  }
-
-  return "";
-}
-
-String stringify(WordNode & n)
-{
-  return n.word;
-}
-
-String stringify(EndOfLine & n)
-{
-  return "\n";
-}
-
-String stringify(Space & n)
-{
-  if(simplify_spaces)
-    return " ";
-  else
-    return n.text;
-}
-
-String stringify(GroupNode & n)
-{
-  String result = "";
-  for(int i(0); i < n.nodes.size(); ++i)
-  {
-    result += stringify(n.nodes.at(i));
-  }
-  return result;
-}
-
-String stringify(BoldNode & n)
-{
-  return "**" + stringify(n.argument) + "**";
-}
-
-String stringify(Type & n)
-{
-  return "`" + stringify(n.argument) + "`";
-}
-
-String stringify(CodeBlock & n)
-{
-  String result = "";
-  result += "```";
-  result += n.lang;
-  simplify_spaces = false;
-  result += stringify(n.nodes);
-  simplify_spaces = true;
-  result += "```";
-  return result;
-}
-
-String stringify(InlineCode & n)
-{
-  return "`" + stringify(n.argument) + "`";
-}
-
-String stringify(Link & n)
-{
-  return "[" + stringify(n.text) + "](" + stringify(n.url) + ")";
-}
-
-String stringify(ListNode & n)
-{
-  String result = "";
-  for (int i(0); i < n.items.size(); ++i)
-  {
-    result += "- ";
-    result += stringify(n.items.at(i));
-    result += "\n";
-  }
-  return result;
-}
-
-} // namespace markdown
-
-} // namespace liquid
-
 
 String read_all(const String & filename)
 {
@@ -128,30 +15,115 @@ void write_file(const String & filename, const String & content)
 {
   File f{filename};
   if(!f.open(File::WriteOnly))
-    return;
+  {
+    print("Could not write output file:" + filename);
+	return;
+  }
   f.write(content);
   f.close();
 }
 
-namespace output
+class Markdown : Output
 {
+  bool m_simplify_spaces;
 
-void markdown(const String & outdir)
-{
-  print("Outputing Markdown into :" + outdir);
-  
-  liquid::Context context;
-  context.loadStringConverters("liquid::markdown");
+  Markdown() : m_simplify_spaces(false) { }
+  ~Markdown() = default;
 
-  liquid::Template tmplt = liquid::parse(read_all(profileDirectory() + "/output/template-class.md"));
-
-  for(int i(0); i < state.classes.size(); ++i)
+  void write(const String& outdir)
   {
-    Class & cla = state.classes.at(i);
-    context.expose("class", state.classes.at(i));
-      
-    write_file(outdir + "/" + cla.name + ".md", tmplt.render(context));
-  }
-}
+    liquid::Template tmplt = liquid::parse(read_all(profileDirectory() + "/output/template-class.md"));
 
-} // namespace output
+	MarkdownLiquid renderer;
+
+    json::Object context;
+	context["classes"] = serialization::encode(state.classes);
+
+    for(int i(0); i < state.classes.size(); ++i)
+    {
+	  context["class"] = context["classes"].at(i);
+	  Class& cla = state.classes.at(i);
+
+      write_file(outdir + "/" + cla.name + ".md", renderer.render(tmplt, context));
+    }
+  }
+
+  String toString(const Space& sp)
+  {
+    if(m_simplify_spaces) return " ";
+    return sp.content;
+  }
+
+  String toString(const EOL& )
+  {
+    return "\n";
+  }
+
+  String toString(const TextBold& text)
+  {
+    return "**" + stringify(text.content) + "**";
+  }
+
+  String toString(const TextItalic& text)
+  {
+    return "*" + stringify(text.content) + "*";
+  }
+
+  String toString(const ListNode& list)
+  {
+    String result = "";
+    for (int i(0); i < list.items.length(); ++i)
+    {
+      result += "- ";
+      result += stringify(list.items.at(i));
+      result += "\n";
+    }
+    return result;
+  }
+
+  String toString(const InlineCode& inlcode)
+  {
+    return "`" + stringify(inlcode.content) + "`";
+  }
+  
+  String toString(const Type& t)
+  {
+    return "`" + stringify(t.content) + "`";
+  }
+
+  String toString(const Link& link)
+  {
+    return "[" + stringify(link.text) + "](" + stringify(link.url) + ")";
+  }
+
+  String toString(const CodeBlock & cb)
+  {
+    String result = "";
+    result += "```";
+    result += cb.lang;
+    m_simplify_spaces = false;
+    result += stringify(cb.nodes);
+    m_simplify_spaces = true;
+    result += "```";
+    return result;
+  }
+
+};
+
+class MarkdownLiquid : liquid::Renderer
+{
+public:
+
+  MarkdownLiquid() = default;
+  ~MarkdownLiquid() = default;
+  
+  static TextBold bold(const String& str)
+  {
+    return TextBold(str);
+  }
+
+  static TextItalic italic(const String& str)
+  {
+    return TextItalic(str);
+  }
+};

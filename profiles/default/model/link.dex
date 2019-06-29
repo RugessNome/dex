@@ -1,17 +1,20 @@
 
 import model.node;
 
-class Link : Node
+class Link
 {
 public:
-  Ref<Node> url;
-  Ref<Node> text;
+  json::Json url;
+  json::Json text;
 
 public:
-  Link(const Ref<Node> & u, const Ref<Node> & t)
+  Link(const json::Json & u, const json::Json & t)
     : url(u), text(t)
   {
   }
+
+  Link() = default;
+  Link(const Link&) = default;
 
   ~Link() = default;
 };

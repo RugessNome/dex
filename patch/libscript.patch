@@ -1,0 +1,685 @@
+diff --git a/include/script/engine.h b/include/script/engine.h
+index 8c33f7d..f21af15 100644
+--- a/include/script/engine.h
++++ b/include/script/engine.h
+@@ -203,6 +203,13 @@ public:
+   ClassTemplate getTemplate(initializer_list_template_t) const;
+   bool isInitializerListType(const Type & t) const;
+ 
++  struct ref_template_t {};
++  static const ref_template_t RefTemplate;
++  ClassTemplate getTemplate(ref_template_t) const;
++
++  struct list_template_t {};
++  static const list_template_t ListTemplate;
++  ClassTemplate getTemplate(list_template_t) const;
+ 
+   const std::vector<Script> & scripts() const;
+ 
+diff --git a/include/script/private/engine_p.h b/include/script/private/engine_p.h
+index 8ba8c5b..825083e 100644
+--- a/include/script/private/engine_p.h
++++ b/include/script/private/engine_p.h
+@@ -59,6 +59,8 @@ public:
+   {
+     ClassTemplate array;
+     ClassTemplate initializer_list;
++    ClassTemplate list_template;
++    ClassTemplate ref_template;
+   }templates;
+ 
+ public:
+diff --git a/include/script/string.h b/include/script/string.h
+index b19bed4..4466491 100644
+--- a/include/script/string.h
++++ b/include/script/string.h
+@@ -7,9 +7,7 @@
+ 
+ #include "libscriptdefs.h"
+ 
+-#define LIBSCRIPT_USE_BUILTIN_STRING_BACKEND
+-
+-#include <string>
++#include <QString>
+ 
+ namespace script
+ {
+@@ -31,14 +29,14 @@ public:
+    * \typedef string_type
+    * \brief Typedef for the C++ string type that is going to be used in the scripting language.
+    */
+-  typedef std::string string_type;
++  typedef QString string_type;
+ 
+ public:
+   /*!
+-   * \fn static const string_type& convert(const std::string& str)
++   * \fn static string_type convert(const std::string& str)
+    * \brief Provides conversion from std::string to \t string_type.
+    */
+-  static const string_type& convert(const std::string& str) { return str; }
++  static string_type convert(const std::string& str) { return QString::fromStdString(str); }
+ 
+   /*!
+    * \fn static std::string class_name()
+diff --git a/include/script/types.h b/include/script/types.h
+index be6880f..b2c5522 100644
+--- a/include/script/types.h
++++ b/include/script/types.h
+@@ -56,6 +56,26 @@ public:
+     String = ObjectFlag | 1,
+     InitializerList = 8,
+     Auto = 9,
++    FirstClassType = String + 10,
++    NullType = FirstClassType,
++    QChar,
++    CharRef,
++    DexOptions,
++    DexOptionsIterator,
++    DexSpanWord,
++    DexSpanLine,
++    DexSpanParagraph,
++    DexOutput,
++    Json,
++    JsonArray,
++    JsonObject,
++    JsonArrayProxy,
++    JsonObjectProxy,
++    DexSpace,
++    DexEOL,
++    DexLiquidRenderer,
++    LiquidTemplate,
++    LastClassType,
+   };
+ 
+   inline bool isNull() const { return d == 0; }
+diff --git a/src/engine.cpp b/src/engine.cpp
+index 59f66fc..444e689 100644
+--- a/src/engine.cpp
++++ b/src/engine.cpp
+@@ -1458,6 +1458,20 @@ bool Engine::isInitializerListType(const Type & t) const
+   return getClass(t).isTemplateInstance() && getClass(t).instanceOf() == getTemplate(InitializerListTemplate);
+ }
+ 
++const Engine::ref_template_t Engine::RefTemplate = Engine::ref_template_t{};
++
++ClassTemplate Engine::getTemplate(ref_template_t) const
++{
++  return d->templates.ref_template;
++}
++
++const Engine::list_template_t Engine::ListTemplate = Engine::list_template_t{};
++
++ClassTemplate Engine::getTemplate(list_template_t) const
++{
++  return d->templates.list_template;
++}
++
+ /*!
+  * \fn const std::vector<Script> & scripts() const
+  * \brief Returns all list of all existing scripts.
+diff --git a/src/string.cpp b/src/string.cpp
+index a5f515d..f19a283 100644
+--- a/src/string.cpp
++++ b/src/string.cpp
+@@ -4,8 +4,6 @@
+ 
+ #include "script/string.h"
+ 
+-#if defined(LIBSCRIPT_USE_BUILTIN_STRING_BACKEND)
+-
+ #include "script/engine.h"
+ #include "script/private/engine_p.h"
+ #include "script/castbuilder.h"
+@@ -23,11 +21,274 @@
+ namespace script
+ {
+ 
+-static int charref_id = 0;
++struct CharRef
++{
++  QString* str;
++  int index;
++
++  CharRef(QString* s, int i)
++    : str(s), index(i)
++  {
++
++  }
++};
++
++template<> struct make_type_helper<CharRef> { static Type get() { return Type::CharRef; } };
++template<> struct make_type_helper<QChar> { static Type get() { return Type::QChar; } };
+ 
+ namespace callbacks
+ {
+ 
++namespace qchar
++{
++
++/*!
++ * \class Char
++ * \brief Represents a unicode character
++ */
++
++/*!
++ * \fn Char()
++ */
++Value default_ctor(FunctionCall* c)
++{
++  c->thisObject().init<QChar>();
++  return c->thisObject();
++}
++
++/*!
++ * \fn Char(const Char&)
++ */
++Value copy_ctor(FunctionCall* c)
++{
++  QChar& ch = get<QChar>(c->arg(1));
++  c->thisObject().init<QChar>(ch);
++  return c->thisObject();
++}
++
++/*!
++ * \fn Char(const char& ch)
++ */
++Value char_ctor(FunctionCall* c)
++{
++  char ch = get<char>(c->arg(1));
++  c->thisObject().init<QChar>(ch);
++  return c->thisObject();
++}
++
++/*!
++ * \fn ~Char()
++ */
++Value dtor(FunctionCall* c)
++{
++  c->thisObject().destroy<QChar>();
++  return script::Value::Void;
++}
++
++/*!
++ * \fn int digitValue() const
++ */
++Value digit_value(FunctionCall* c)
++{
++  return c->engine()->newInt(get<QChar>(c->arg(0)).digitValue());
++}
++
++/*!
++ * \fn bool isDigit() const
++ */
++Value is_digit(FunctionCall* c)
++{
++  return c->engine()->newBool(get<QChar>(c->arg(0)).isDigit());
++}
++
++/*!
++ * \fn bool isLetter() const
++ */
++Value is_letter(FunctionCall* c)
++{
++  return c->engine()->newBool(get<QChar>(c->arg(0)).isLetter());
++}
++
++/*!
++ * \fn bool isLetterOrNumber() const
++ */
++Value is_letter_or_number(FunctionCall* c)
++{
++  return c->engine()->newBool(get<QChar>(c->arg(0)).isLetterOrNumber());
++}
++
++/*!
++ * \fn bool isLower() const
++ */
++Value is_lower(FunctionCall* c)
++{
++  return c->engine()->newBool(get<QChar>(c->arg(0)).isLower());
++}
++
++/*!
++ * \fn bool isNonCharacter() const
++ */
++Value is_non_character(FunctionCall* c)
++{
++  return c->engine()->newBool(get<QChar>(c->arg(0)).isNonCharacter());
++}
++
++/*!
++ * \fn bool isNull() const
++ */
++Value is_null(FunctionCall* c)
++{
++  return c->engine()->newBool(get<QChar>(c->arg(0)).isNull());
++}
++
++/*!
++ * \fn bool isNumber() const
++ */
++Value is_number(FunctionCall* c)
++{
++  return c->engine()->newBool(get<QChar>(c->arg(0)).isNumber());
++}
++
++/*!
++ * \fn bool isPunct() const
++ */
++Value is_punct(FunctionCall* c)
++{
++  return c->engine()->newBool(get<QChar>(c->arg(0)).isPunct());
++}
++
++/*!
++ * \fn bool isSpace() const
++ */
++Value is_space(FunctionCall* c)
++{
++  return c->engine()->newBool(get<QChar>(c->arg(0)).isSpace());
++}
++
++/*!
++ * \fn bool isTitleCase() const
++ */
++Value is_title_case(FunctionCall* c)
++{
++  return c->engine()->newBool(get<QChar>(c->arg(0)).isTitleCase());
++}
++
++/*!
++ * \fn bool isUpper() const
++ */
++Value is_upper(FunctionCall* c)
++{
++  return c->engine()->newBool(get<QChar>(c->arg(0)).isUpper());
++}
++
++/*!
++ * \fn char toLatin1() const
++ */
++Value to_latin1(FunctionCall* c)
++{
++  return c->engine()->newChar(get<QChar>(c->arg(0)).toLatin1());
++}
++
++/*!
++ * \fn Char toLower() const
++ */
++Value to_lower(FunctionCall* c)
++{
++  return c->engine()->construct<QChar>(get<QChar>(c->arg(0)).toLower());
++}
++
++/*!
++ * \fn Char toTitleCase() const
++ */
++Value to_title_case(FunctionCall* c)
++{
++  return c->engine()->construct<QChar>(get<QChar>(c->arg(0)).toTitleCase());
++}
++
++/*!
++ * \fn Char toUpper() const
++ */
++Value to_upper(FunctionCall* c)
++{
++  return c->engine()->construct<QChar>(get<QChar>(c->arg(0)).toUpper());
++}
++
++/*!
++ * \fn Char& operator=(const Char&)
++ */
++Value op_assign(FunctionCall* c)
++{
++  QChar& self = get<QChar>(c->arg(0));
++  QChar& other = get<QChar>(c->arg(1));
++  self = other;
++  return c->arg(0);
++}
++
++/*!
++ * \fn bool operator==(const Char& other) const;
++ */
++Value op_eq(FunctionCall* c)
++{
++  QChar& self = get<QChar>(c->arg(0));
++  QChar& other = get<QChar>(c->arg(1));
++  return c->engine()->newBool(self == other);
++}
++
++/*!
++ * \fn bool operator!=(const Char& other) const;
++ */
++Value op_neq(FunctionCall* c)
++{
++  QChar& self = get<QChar>(c->arg(0));
++  QChar& other = get<QChar>(c->arg(1));
++  return c->engine()->newBool(self != other);
++}
++
++} // namespace qchar
++
++namespace charref
++{
++
++/*!
++ * \fn CharRef(const CharRef& other)
++ */
++Value copy_ctor(FunctionCall* c)
++{
++  CharRef& other = get<CharRef>(c->arg(1));
++  c->thisObject().init<CharRef>(other);
++  return c->thisObject();
++}
++
++/*!
++ * \fn ~CharRef()
++ */
++Value dtor(FunctionCall* c)
++{
++  c->thisObject().destroy<CharRef>();
++  return script::Value::Void;
++}
++
++/*!
++ * \fn CharRef& operator=(const Char& c)
++ */
++Value op_assign(FunctionCall* c)
++{
++  CharRef& self = get<CharRef>(c->arg(0));
++  self.str[self.index] = get<QChar>(c->arg(1));
++  return c->arg(0);
++}
++
++/*!
++ * \fn operator Char() const
++ */
++Value to_char(FunctionCall* c)
++{
++  CharRef& self = get<CharRef>(c->arg(0));
++  return c->engine()->construct<QChar>(self.str->at(self.index));
++}
++
++} // namespace charref
++
+ namespace string
+ {
+ 
+@@ -63,7 +324,7 @@ Value dtor(FunctionCall *c)
+   return that;
+ }
+ 
+-// char String::at(int index) const;
++// Char String::at(int index) const;
+ Value at(FunctionCall *c)
+ {
+   Value that = c->thisObject();
+@@ -71,7 +332,7 @@ Value at(FunctionCall *c)
+ 
+   const int position = c->arg(1).toInt();
+ 
+-  return c->engine()->newChar(self.at(position));
++  return c->engine()->construct<QChar>(self.at(position));
+ }
+ 
+ // int String::capacity() const;
+@@ -89,25 +350,11 @@ Value clear(FunctionCall *c)
+   return Value::Void;
+ }
+ 
+-// bool empty() const;
++// bool isEmpty() const;
+ Value empty(FunctionCall *c)
+ {
+   Value that = c->thisObject();
+-  return c->engine()->newBool(that.impl()->get_string().empty());
+-}
+-
+-// String & erase(int position, int n);
+-Value erase(FunctionCall *c)
+-{
+-  Value that = c->thisObject();
+-  auto & self = that.impl()->get_string();
+-
+-  const int position = c->arg(1).toInt();
+-  const int n = c->arg(2).toInt();
+-
+-  self.erase(position, n);
+-
+-  return that;
++  return c->engine()->newBool(that.impl()->get_string().isEmpty());
+ }
+ 
+ // String & String::insert(int position, const String & str);
+@@ -133,6 +380,20 @@ Value length(FunctionCall *c)
+   return c->engine()->newInt(self.size());
+ }
+ 
++// String & remove(int position, int n);
++Value remove(FunctionCall* c)
++{
++  Value that = c->thisObject();
++  auto& self = that.impl()->get_string();
++
++  const int position = c->arg(1).toInt();
++  const int n = c->arg(2).toInt();
++
++  self.remove(position, n);
++
++  return that;
++}
++
+ // String & String::replace(int position, int n, const String & after);
+ Value replace(FunctionCall *c)
+ {
+@@ -254,99 +515,124 @@ Value add(FunctionCall *c)
+   return c->engine()->newString(self + other);
+ }
+ 
++// String& String::operator+=(const String & other);
++Value add_assign(FunctionCall* c)
++{
++  Value that = c->thisObject();
++  auto& self = that.impl()->get_string();
++
++  const auto& other = c->arg(1).impl()->get_string();
++
++  self += other;
++
++  return c->arg(0);
++}
++
+ // charref String::operator[](int index);
+ Value subscript(FunctionCall *c)
+ {
+   Value that = c->thisObject();
+-  auto & self = that.impl()->get_string();
++  auto& self = that.impl()->get_string();
+ 
+   const int pos = c->arg(1).toInt();
+ 
+-  Value ret = c->engine()->allocate(charref_id);
+-  ret.impl()->set_charref(CharRef{ &self, (size_t)pos });
+-  return ret;
++  return c->engine()->construct<CharRef>(&self, pos);
+ }
+ 
+ } // namespace operators
+ 
+ } // namespace string
+ 
+-namespace charref
+-{
++} // namespace callbacks
+ 
+-// charref(String & str, int pos);
+-Value ctor(FunctionCall *c)
++Type register_charref_type(Engine *e)
+ {
+-  Value that = c->thisObject();
++  Class charref = Symbol{ e->rootNamespace() }.newClass("CharRef").setId(Type::CharRef).get();
+ 
+-  auto & str = c->arg(0).impl()->get_string();
+-  const int pos = c->arg(1).toInt();
++  charref.newConstructor(callbacks::charref::copy_ctor).params(Type::cref(charref.id())).create();
+ 
+-  that.impl()->set_charref(CharRef{ &str, (size_t)pos });
++  charref.newDestructor(callbacks::charref::dtor).create();
+ 
+-  return that;
++  charref.newOperator(AssignmentOperator, callbacks::charref::op_assign).returns(Type::ref(charref.id())).params(Type::Char).create();
++
++  charref.newConversion(Type{ Type::Char, Type::ConstFlag }, callbacks::charref::to_char).setConst().create();
++
++  return charref.id();
+ }
+ 
+-// charref(const charref & other);
+-Value copy_ctor(FunctionCall *c)
++static void register_char_type(script::Namespace& ns)
+ {
+-  Value that = c->thisObject();
+-  const CharRef & other = c->arg(0).impl()->get_charref();
++  Class unichar = Symbol{ ns }.newClass("Char").setId(Type::QChar).get();
+ 
+-  that.impl()->set_charref(other);
++  unichar.newConstructor(callbacks::qchar::default_ctor).create();
+ 
+-  return that;
+-}
++  unichar.newConstructor(callbacks::qchar::copy_ctor)
++    .params(Type::cref(unichar.id())).create();
+ 
+-// ~charref();
+-Value dtor(FunctionCall *c)
+-{
+-  Value that = c->thisObject();
++  unichar.newConstructor(callbacks::qchar::char_ctor)
++    .params(Type::cref(Type::QChar)).create();
+ 
+-  that.impl()->set_charref(CharRef{ nullptr, (size_t)0 });
++  unichar.newDestructor(callbacks::qchar::dtor).create();
+ 
+-  return that;
+-}
++  unichar.newMethod("digitValue", callbacks::qchar::digit_value)
++    .returns(Type::Int).setConst().create();
+ 
+-// operator const char();
+-Value operator_char(FunctionCall *c)
+-{
+-  Value that = c->thisObject();
+-  CharRef value = that.impl()->get_charref();
+-  return c->engine()->newChar(value.string->at(value.pos));
+-}
++  unichar.newMethod("isDigit", callbacks::qchar::is_digit)
++    .returns(Type::Boolean).setConst().create();
+ 
+-// charref & operator=(char c);
+-Value assign(FunctionCall *c)
+-{
+-  Value that = c->thisObject();
+-  CharRef value = that.impl()->get_charref();
+-  (*value.string)[value.pos] = c->arg(1).toChar();
++  unichar.newMethod("isLetter", callbacks::qchar::is_letter)
++    .returns(Type::Boolean).setConst().create();
+ 
+-  return that;
+-}
++  unichar.newMethod("isLetterOrNumber", callbacks::qchar::is_letter_or_number)
++    .returns(Type::Boolean).setConst().create();
+ 
+-} // namespace charref
++  unichar.newMethod("isLower", callbacks::qchar::is_lower)
++    .returns(Type::Boolean).setConst().create();
+ 
+-} // namespace callbacks
++  unichar.newMethod("isNonCharacter", callbacks::qchar::is_non_character)
++    .returns(Type::Boolean).setConst().create();
+ 
+-Type register_charref_type(Engine *e)
+-{
+-  Class charref = Symbol{ e->rootNamespace() }.newClass("charref").get();
++  unichar.newMethod("isNull", callbacks::qchar::is_null)
++    .returns(Type::Boolean).setConst().create();
+ 
+-  charref_id = charref.id();
++  unichar.newMethod("isNumber", callbacks::qchar::is_number)
++    .returns(Type::Boolean).setConst().create();
+ 
+-  charref.newConstructor(callbacks::charref::ctor).params(Type::ref(Type::String), Type::Int).create();
++  unichar.newMethod("isPunct", callbacks::qchar::is_punct)
++    .returns(Type::Boolean).setConst().create();
+ 
+-  charref.newConstructor(callbacks::charref::copy_ctor).params(Type::cref(charref.id())).create();
++  unichar.newMethod("isSpace", callbacks::qchar::is_space)
++    .returns(Type::Boolean).setConst().create();
+ 
+-  charref.newDestructor(callbacks::charref::dtor).create();
++  unichar.newMethod("isTitleCase", callbacks::qchar::is_title_case)
++    .returns(Type::Boolean).setConst().create();
+ 
+-  charref.newOperator(AssignmentOperator, callbacks::charref::assign).returns(Type::ref(charref.id())).params(Type::Char).create();
++  unichar.newMethod("isUpper", callbacks::qchar::is_upper)
++    .returns(Type::Boolean).setConst().create();
+ 
+-  charref.newConversion(Type{ Type::Char, Type::ConstFlag }, callbacks::charref::operator_char).setConst().create();
++  unichar.newMethod("toLatin1", callbacks::qchar::to_latin1)
++    .returns(Type::Char).setConst().create();
+ 
+-  return charref.id();
++  unichar.newMethod("toLower", callbacks::qchar::to_lower)
++    .returns(Type::QChar).setConst().create();
++
++  unichar.newMethod("toTitleCase", callbacks::qchar::to_title_case)
++    .returns(Type::QChar).setConst().create();
++
++  unichar.newMethod("toUpper", callbacks::qchar::to_upper)
++    .returns(Type::QChar).setConst().create();
++
++  unichar.newOperator(AssignmentOperator, callbacks::qchar::op_assign)
++    .returns(Type::ref(unichar.id()))
++    .params(Type::cref(unichar.id())).create();
++
++  unichar.newOperator(EqualOperator, callbacks::qchar::op_eq)
++    .returns(Type::Boolean)
++    .params(Type::cref(unichar.id())).setConst().create();
++
++  unichar.newOperator(InequalOperator, callbacks::qchar::op_neq)
++    .returns(Type::Boolean)
++    .params(Type::cref(unichar.id())).setConst().create();
+ }
+ 
+ void StringBackend::register_string_type(Class& string)
+@@ -360,11 +646,11 @@ void StringBackend::register_string_type(Class& string)
+   string.newMethod("at", callbacks::string::at).setConst().returns(Type::Char).params(Type::Int).create();
+   string.newMethod("capacity", callbacks::string::capacity).setConst().returns(Type::Int).create();
+   string.newMethod("clear", callbacks::string::clear).create();
+-  string.newMethod("empty", callbacks::string::empty).setConst().returns(Type::Boolean).create();
+-  string.newMethod("erase", callbacks::string::erase).returns(Type::ref(string.id())).params(Type::Int, Type::Int).create();
++  string.newMethod("isEmpty", callbacks::string::empty).setConst().returns(Type::Boolean).create();
+   string.newMethod("insert", callbacks::string::insert).returns(Type::ref(string.id())).params(Type::Int, Type::cref(string.id())).create();
+   string.newMethod("length", callbacks::string::length).setConst().returns(Type::Int).create();
+   string.newMethod("size", callbacks::string::length).setConst().returns(Type::Int).create();
++  string.newMethod("remove", callbacks::string::remove).returns(Type::ref(string.id())).params(Type::Int, Type::Int).create();
+   string.newMethod("replace", callbacks::string::replace).returns(Type::ref(string.id())).params(Type::Int, Type::Int, Type::cref(string.id())).create();
+   string.newMethod("swap", callbacks::string::swap).params(Type::ref(string.id())).create();
+ 
+@@ -378,13 +664,12 @@ void StringBackend::register_string_type(Class& string)
+   string.newOperator(AssignmentOperator, callbacks::string::operators::assign).returns(Type::ref(string.id())).params(Type::cref(string.id())).create();
+ 
+   string.newOperator(AdditionOperator, callbacks::string::operators::add).setConst().returns(string.id()).params(Type::cref(string.id())).create();
++  string.newOperator(AdditionAssignmentOperator, callbacks::string::operators::add_assign).returns(Type::ref(string.id())).params(Type::cref(string.id())).create();
+ 
+-  string.newOperator(SubscriptOperator, callbacks::string::at).setConst().returns(Type::Char).params(Type::Int).create();
++  string.newOperator(SubscriptOperator, callbacks::string::at).setConst().returns(Type::QChar).params(Type::Int).create();
+ 
+   const Type charref = register_charref_type(string.engine());
+   string.newOperator(SubscriptOperator, callbacks::string::operators::subscript).returns(charref).params(Type::Int).create();
+ }
+ 
+ } // namespace script
+-
+-#endif // defined(LIBSCRIPT_USE_BUILTIN_STRING_BACKEND)

@@ -3,7 +3,7 @@ import model.node;
 import model.class;
 import model.function;
 
-void brief(const Ref<Node> & value, Span::Line)
+void brief(const json::Json & value, Span::Line)
 {
   if(state.stack.isEmpty())
   {

@@ -4,11 +4,7 @@
 
 #include <QString>
 
-extern void run_liquid_tests();
-
 int main(int argc, char *argv[])
 {
-  run_liquid_tests();
-
   return 0;
 }

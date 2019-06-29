@@ -16,8 +16,8 @@ class Namespace;
 namespace dex
 {
 
-class BracketsArguments;
 class Command;
+class Options;
 
 class Environment
 {
@@ -25,7 +25,7 @@ public:
 
   virtual QString name() const = 0;
 
-  virtual void enter(const BracketsArguments & brackets) = 0;
+  virtual void enter(const Options& options) = 0;
   virtual void leave() = 0;
 
   QSharedPointer<Command> getCommand(const QString & name) const;

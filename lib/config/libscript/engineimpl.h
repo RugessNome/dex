@@ -1,2 +1,0 @@
-
-#include "script/classtemplate.h"

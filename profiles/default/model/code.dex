@@ -4,31 +4,28 @@ import model.node;
 class CodeBlock : Node
 {
 public:
-  Ref<GroupNode> nodes;
+  json::Array nodes;
   String lang;
-public:
-  CodeBlock()
-  {
-    nodes = Ref<GroupNode>::make();
-  }
-  
+
+  CodeBlock() { }
   ~CodeBlock() = default;
   
     
-  void add(const Ref<Node> & n)
+  void add(const json::Json & n)
   {
-    nodes.get().push_back(n);
+    nodes.push(n);
   }
 };
 
-class InlineCode : SingleArgumentNode
+class InlineCode
 {
 public:
-  InlineCode(const Ref<Node> & text)
-    : SingleArgumentNode(text)
-  {
+  json::Json content;
 
-  }
-  
+  InlineCode(const json::Json& data) : content(data) { }
+
+  InlineCode() = default;
+  InlineCode(const InlineCode&) = default;
   ~InlineCode() = default;
 };
+

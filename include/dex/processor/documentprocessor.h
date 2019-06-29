@@ -5,6 +5,7 @@
 #ifndef DEX_DOCUMENT_PROCESSOR_H
 #define DEX_DOCUMENT_PROCESSOR_H
 
+#include "dex/core/json.h"
 #include "dex/processor/environment.h"
 #include "dex/processor/state.h"
 
@@ -16,8 +17,6 @@ class QStringRef;
 
 namespace dex
 {
-
-class NodeRef;
 
 class InputStream
 {
@@ -121,16 +120,26 @@ public:
   void setBlockDelimiters(const QString & start, const QString & end);
   void addIgnoredSequence(const QString & val);
 
+  static bool isSpace(const json::Json& node);
+  static bool isWord(const json::Json& node) { return node.isString(); }
+  static bool isEOL(const json::Json& node);
+
+  static json::Json createSpace(const QString& str);
+  static json::Json createEOL();
+
+  QString stringify(const json::Json& data);
+
 protected:
-  NodeRef read();
-  NodeRef readArgument();
-  NodeRef readLineArgument();
-  NodeRef readParagraphArgument();
-  NodeRef createNode(const StreamTokenizer::Token & tok);
-  NodeRef readGroup(const StreamTokenizer::Token & tok);
-  BracketsArguments readBracketsArguments();
+  json::Json read();
+  json::Json readArgument();
+  json::Json readLineArgument();
+  json::Json readParagraphArgument();
+  json::Json createNode(const StreamTokenizer::Token & tok);
+  json::Json readGroup(const StreamTokenizer::Token & tok);
+  Options readOptions();
+  static json::Json parseOptions(const QString& val);
   QSharedPointer<Command> findCommand(const QString & name) const;
-  NodeRef readCommand(const StreamTokenizer::Token & command);
+  json::Json readCommand(const StreamTokenizer::Token & command);
 
   void processFile(const QString & path);
 

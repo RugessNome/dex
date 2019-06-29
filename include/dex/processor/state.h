@@ -5,13 +5,13 @@
 #ifndef DEX_STATE_H
 #define DEX_STATE_H
 
+#include "dex/core/json.h"
+
 #include <script/function.h>
 #include <script/value.h>
 
 namespace dex
 {
-
-class NodeRef;
 
 class State
 {
@@ -41,7 +41,7 @@ public:
   void beginBlock();
   void endBlock();
 
-  void dispatch(const NodeRef & node);
+  void dispatch(const json::Json& node);
 
   void destroy();
 

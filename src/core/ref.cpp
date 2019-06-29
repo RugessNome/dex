@@ -27,69 +27,172 @@
 namespace dex
 {
 
+ValuePtr::ValuePtr()
+  : value(nullptr)
+{
+
+}
+
+ValuePtr::ValuePtr(const script::Value& val)
+  : value(val.impl())
+{
+  if (value)
+    value->ref += 1;
+}
+
+ValuePtr::ValuePtr(const ValuePtr& other)
+  : value(other.value)
+{
+  if (value)
+    value->ref += 1;
+}
+
+ValuePtr::~ValuePtr()
+{
+  reset();
+}
+
+void ValuePtr::reset()
+{
+  if (value)
+  {
+    value->ref -= 1;
+    if (value->ref == 0)
+      value->engine->destroy(script::Value(value));
+    value = nullptr;
+  }
+}
+
+ValuePtr& ValuePtr::operator=(const ValuePtr& other)
+{
+  if (other.value == this->value)
+  {
+    return *this;
+  }
+
+  if (value)
+  {
+    value->ref -= 1;
+    if (value->ref == 0)
+      value->engine->destroy(script::Value(value));
+  }
+
+  value = other.value;
+  if (value)
+    value->ref += 1;
+
+  return *this;
+}
+
+ValuePtr& ValuePtr::operator=(script::ValueImpl* ptr)
+{
+  if (ptr == this->value)
+  {
+    return *this;
+  }
+
+  if (value)
+  {
+    value->ref -= 1;
+    if (value->ref == 0)
+      value->engine->destroy(script::Value(value));
+  }
+
+  value = ptr;
+  if (value)
+    value->ref += 1;
+
+  return *this;
+}
+
+bool ValuePtr::operator==(nullptr_t) const
+{
+  return value == nullptr;
+}
+
+bool ValuePtr::operator!=(nullptr_t) const
+{
+  return value != nullptr;
+}
+
+bool operator==(const ValuePtr& lhs, const ValuePtr& rhs)
+{
+  return lhs.value == rhs.value;
+}
+
 namespace callbacks
 {
 
 script::Value default_ctor(script::FunctionCall *c)
 {
-  c->thisObject().setRef(nullptr);
+  c->thisObject().init<ValuePtr>();
   return c->thisObject();
 }
 
 script::Value copy_ctor(script::FunctionCall *c)
 {
   script::Value other = c->arg(1);
-  c->thisObject().setRef(other.getRef());
+  c->thisObject().init<ValuePtr>(script::get<ValuePtr>(other));
   return c->thisObject();
 }
 
 script::Value dtor(script::FunctionCall *c)
 {
-  c->thisObject().setRef(nullptr);
-  c->thisObject().clear(script::passkey{});
+  c->thisObject().destroy<ValuePtr>();
   return c->thisObject();
 }
 
 script::Value get(script::FunctionCall *c)
 {
-  if (c->thisObject().getRef() == nullptr)
+  ValuePtr& ptr = script::get<ValuePtr>(c->thisObject());
+  if (ptr.value == nullptr)
     throw std::runtime_error{ "Call to get() on empty Ref" };
 
-  auto self = c->thisObject();
-  auto ret = script::Value{ self.getRef() };
+  auto ret = script::Value{ ptr.value };
   return ret;
 }
 
 script::Value is_null(script::FunctionCall *c)
 {
-  return c->engine()->newBool(c->thisObject().getRef() == nullptr);
+  return c->engine()->newBool(script::get<ValuePtr>(c->thisObject()) == nullptr);
+}
+
+script::Value reset(script::FunctionCall* c)
+{
+  ValuePtr& ptr = script::get<ValuePtr>(c->thisObject());
+  ptr.reset();
+  return script::Value::Void;
 }
 
 script::Value is_valid(script::FunctionCall *c)
 {
-  return c->engine()->newBool(c->thisObject().getRef() != nullptr);
+  return c->engine()->newBool(script::get<ValuePtr>(c->thisObject()) != nullptr);
 }
 
 script::Value assign(script::FunctionCall *c)
 {
-  script::Value other = c->arg(1);
-  c->thisObject().setRef(other.getRef());
+  script::get<ValuePtr>(c->thisObject()) = script::get<ValuePtr>(c->arg(1));
+  return c->thisObject();
+}
+
+script::Value assign_null(script::FunctionCall* c)
+{
+  script::get<ValuePtr>(c->thisObject()).reset();
   return c->thisObject();
 }
 
 script::Value eq(script::FunctionCall *c)
 {
-  script::Value other = c->arg(1);
-  const bool result = c->thisObject().getRef() == other.getRef();
+  const bool result = (script::get<ValuePtr>(c->thisObject()) == script::get<ValuePtr>(c->arg(1)));
   return c->engine()->newBool(result);
 }
 
 script::Value cast(script::FunctionCall *c)
 {
-  script::ValueImpl *ptr = c->thisObject().getRef();
+  ValuePtr& self = script::get<ValuePtr>(c->thisObject());
   /// TODO: check that cast is correct !!
   script::Value ret = c->engine()->construct(c->callee().returnType(), {});
-  ret.setRef(ptr);
+  script::get<ValuePtr>(ret) = self;
   return ret;
 }
 
@@ -185,7 +288,7 @@ static script::Value make_ref_template(script::FunctionCall *c)
   c->engine()->applyConversions(args, data->conversions);
   c->engine()->invoke(data->target, args);
   script::Value result = c->engine()->construct(c->callee().returnType(), {});
-  result.setRef(content.impl());
+  script::get<ValuePtr>(result) = content.impl();
   return result;
 }
 
@@ -252,7 +355,7 @@ namespace callbacks
 static script::Value is_template(script::FunctionCall *c)
 {
   using namespace script;
-  Value val{ c->thisObject().getRef() };
+  Value val{ script::get<ValuePtr>(c->thisObject()).value };
   if(val.isNull())
     return c->engine()->newBool(false);
 
@@ -313,7 +416,7 @@ namespace callbacks
 static script::Value as_template(script::FunctionCall *c)
 {
   using namespace script;
-  Value val{ c->thisObject().getRef() };
+  Value val{ script::get<ValuePtr>(c->thisObject()).value };
   if (!val.type().isObjectType() || !c->callee().arguments().front().type.isObjectType())
   {
     return c->engine()->construct(c->callee().returnType(), {});
@@ -326,10 +429,9 @@ static script::Value as_template(script::FunctionCall *c)
     return c->engine()->construct(c->callee().returnType(), {});
   }
 
-
-  return c->engine()->construct(c->callee().returnType(), [&val](script::Value &ret) -> void {
-    ret.setRef(val.impl());
-  });
+  Value ret = c->engine()->construct(c->callee().returnType(), {});
+  script::get<ValuePtr>(ret) = val.impl();
+  return ret;
 }
 
 } // namespace callbacks
@@ -378,9 +480,16 @@ static void fill_ref_instance(script::Class & instance, const script::Class & cl
     .returns(Type::Boolean)
     .create();
 
+  instance.newMethod("reset", callbacks::reset)
+    .create();
+
   instance.newOperator(AssignmentOperator, callbacks::assign)
     .returns(Type::ref(instance.id()))
     .params(Type::cref(instance.id())).create();
+
+  instance.newOperator(AssignmentOperator, callbacks::assign_null)
+    .returns(Type::ref(instance.id()))
+    .params(Type::cref(Type::NullType)).create();
 
   instance.newOperator(EqualOperator, callbacks::eq)
     .setConst()
@@ -433,7 +542,7 @@ void register_ref_template(script::Namespace ns)
     .setCallback(ref_template)
     .get();
   
-  ns.engine()->implementation()->ref_template_ = ref;
+  ns.engine()->implementation()->templates.ref_template = ref;
 }
 
 

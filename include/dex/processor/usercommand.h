@@ -13,9 +13,6 @@
 namespace dex
 {
 
-class BracketsArguments;
-class NodeRef;
-
 class UserCommand : public Command
 {
 public:
@@ -26,17 +23,14 @@ public:
   QString name() const override;
   int parameterCount() const override;
   CommandSpan::Value span() const override;
-  bool acceptsBracketArguments() const override;
+  bool acceptsOptions() const override;
 
-  NodeRef invoke(DocumentProcessor *, const BracketsArguments & brackets, const QList<NodeRef> & arguments) override;
+  json::Json invoke(DocumentProcessor *, const Options& opts, const QList<json::Json>& arguments) override;
 
   static bool check(const script::Prototype & proto);
   static bool check(const script::Function & f);
 
   static QSharedPointer<UserCommand> create(const script::Class & cla);
-
-private:
-  script::Value convert(const NodeRef & node, const script::Type & type);
 
 private:
   QString mName;

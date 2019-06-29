@@ -4,11 +4,11 @@
 
 #include "dex/processor/documentprocessor.h"
 
-#include "dex/processor/bracketsarguments.h"
+#include "dex/core/options.h"
+#include "dex/core/output.h"
 #include "dex/processor/builtincommand.h"
 #include "dex/processor/command.h"
 #include "dex/processor/environment.h"
-#include "dex/processor/node.h"
 #include "dex/processor/rootenvironment.h"
 
 #include <script/engine.h>
@@ -257,11 +257,17 @@ void DocumentProcessor::input(const QString & filename)
   mInputStream.inject(content);
 }
 
+extern void register_eol_type(script::Namespace& ns); // defined in eol.cpp
+extern void register_space_type(script::Namespace& ns); // defined in space.cpp
+
 void DocumentProcessor::registerApi(script::Engine *e)
 {
   dex::CommandSpan::register_span_types(e->rootNamespace());
   dex::Command::registerCommandType(e);
-  dex::BracketsArguments::register_type(e->rootNamespace());
+
+  script::Namespace ns = e->rootNamespace();
+  register_eol_type(ns);
+  register_space_type(ns);
 }
 
 void DocumentProcessor::setBlockDelimiters(const QString & start, const QString & end)
@@ -274,7 +280,37 @@ void DocumentProcessor::addIgnoredSequence(const QString & val)
   mIgnoredSequences << val;
 }
 
-NodeRef DocumentProcessor::read()
+bool DocumentProcessor::isSpace(const json::Json& data)
+{
+  return data.isObject() && data["__type"] == script::Type::DexEOL;
+}
+
+bool DocumentProcessor::isEOL(const json::Json& data)
+{
+  return data.isObject() && data["__type"] == script::Type::DexEOL;
+}
+
+json::Json DocumentProcessor::createSpace(const QString& str)
+{
+  json::Json result;
+  result["content"] = str;
+  result["__type"] = script::Type::DexSpace;
+  return result;
+}
+
+json::Json DocumentProcessor::createEOL()
+{
+  json::Json result;
+  result["__type"] = script::Type::DexEOL;
+  return result;
+}
+
+QString DocumentProcessor::stringify(const json::Json& data)
+{
+  return dex::Output::current()->stringify(data);
+}
+
+json::Json DocumentProcessor::read()
 {
   auto token = mTokenizer.read();
 
@@ -284,7 +320,7 @@ NodeRef DocumentProcessor::read()
   return createNode(token);
 }
 
-NodeRef DocumentProcessor::readArgument()
+json::Json DocumentProcessor::readArgument()
 {
   auto token = mTokenizer.read();
   if (token.kind == StreamTokenizer::Token::Space) /// TODO: should we consider EOL too ?
@@ -296,43 +332,44 @@ NodeRef DocumentProcessor::readArgument()
   return createNode(token);
 }
 
-NodeRef DocumentProcessor::readLineArgument()
+json::Json DocumentProcessor::readLineArgument()
 {
-  NodeRef arg = readArgument();
+  json::Json arg = readArgument();
 
-  NodeRef group = NodeRef::createGroupNode(engine());
-  while (!arg.isEndOfLine())
+  json::Array group;
+
+  while (!isEOL(arg))
   {
-    group.push_back(arg);
+    group.push(arg);
     if (atBlockEnd())
       break;
     arg = read();
   }
 
-  if (!group.isEmpty() && (group.back().isSpace() || group.back().isEndOfLine()))
+  if (group.length() == 0 && (isSpace(group.data().back()) || isEOL(group.data().back())))
   {
     /// TODO : remove last element from group
   }
 
-  if (group.size() == 1)
+  if (group.length() == 1)
     return group.at(0);
 
   return group;
 }
 
-NodeRef DocumentProcessor::readParagraphArgument()
+json::Json DocumentProcessor::readParagraphArgument()
 {
-  NodeRef group = NodeRef::createGroupNode(engine());
+  json::Array group;
 
   bool eol = false;
 
   while (!atBlockEnd())
   {
-    NodeRef node = read();
-    if (node.isEndOfLine() && eol)
+    json::Json node = read();
+    if (isEOL(node) && eol)
       break;
-    eol = node.isEndOfLine();
-    group.push_back(node);
+    eol = isEOL(node);
+    group.push(node);
   }
 
   /// TODO : remove space of eol at end and beginning of group.
@@ -340,28 +377,29 @@ NodeRef DocumentProcessor::readParagraphArgument()
   return group;
 }
 
-NodeRef DocumentProcessor::createNode(const StreamTokenizer::Token & tok)
+json::Json DocumentProcessor::createNode(const StreamTokenizer::Token & tok)
 {
   if (tok.kind == StreamTokenizer::Token::BeginGroup)
     return readGroup(tok);
   else if (tok.kind == StreamTokenizer::Token::Space)
-    return NodeRef::createSpaceNode(engine(), tok.text);
+    return createSpace(tok.text);
   else if (tok.kind == StreamTokenizer::Token::EndOfLine)
-    return beginLine(), NodeRef::createEndOfLine(engine());
+    return beginLine(), createEOL();
   else
-    return NodeRef::createWordNode(engine(), tok.text);
+    return tok.text;
 }
 
-NodeRef DocumentProcessor::readGroup(const StreamTokenizer::Token & tok)
+json::Json DocumentProcessor::readGroup(const StreamTokenizer::Token & tok)
 {
   Q_ASSERT(tok.kind == StreamTokenizer::Token::BeginGroup);
 
-  auto result = NodeRef::createGroupNode(engine());
+  json::Array result;
+
   while (mInputStream.nextChar() != '}')
   {
     auto element = read();
     if (!element.isNull())
-      result.push_back(element);
+      result.push(element);
   }
 
   mTokenizer.read(); /// TODO: assert its a Token::EndGroup
@@ -369,9 +407,9 @@ NodeRef DocumentProcessor::readGroup(const StreamTokenizer::Token & tok)
   return result;
 }
 
-BracketsArguments DocumentProcessor::readBracketsArguments()
+Options DocumentProcessor::readOptions()
 {
-  BracketsArguments result;
+  Options result;
 
   if (mInputStream.nextChar() != '[')
     return result;
@@ -388,9 +426,9 @@ BracketsArguments DocumentProcessor::readBracketsArguments()
       if (!argument.first.isEmpty())
       {
         if (equal_sign_read)
-          result.add(argument.first, argument.second);
+          result[argument.first] = argument.second;
         else
-          result.add(argument.first);
+          result[""] = argument.first;
       }
 
       argument.first.clear();
@@ -418,6 +456,27 @@ BracketsArguments DocumentProcessor::readBracketsArguments()
   return result;
 }
 
+json::Json DocumentProcessor::parseOptions(const QString& val)
+{
+  bool ok = false;
+  double d = val.toDouble(&ok);
+
+  if (ok)
+    return d;
+
+  int n = val.toInt(&ok);
+
+  if (ok)
+    return n;
+
+  if (val == "true")
+    return true;
+  else if (val == "false")
+    return false;
+
+  return val;
+}
+
 QSharedPointer<Command> DocumentProcessor::findCommand(const QString & name) const
 {
   for (int i(mEnvironments.size() - 1); i >= 0; --i)
@@ -431,7 +490,7 @@ QSharedPointer<Command> DocumentProcessor::findCommand(const QString & name) con
   return nullptr;
 }
 
-NodeRef DocumentProcessor::readCommand(const StreamTokenizer::Token & token)
+json::Json DocumentProcessor::readCommand(const StreamTokenizer::Token & token)
 {
   auto command = findCommand(token.text);
   if (command == nullptr)
@@ -440,14 +499,14 @@ NodeRef DocumentProcessor::readCommand(const StreamTokenizer::Token & token)
     throw std::runtime_error{ "No such command" };
   }
 
-  BracketsArguments brackets = readBracketsArguments();
+  Options opts = readOptions();
   const int argc = command->parameterCount();
-  QList<NodeRef> arguments;
+  QList<json::Json> arguments;
   if (argc != 1)
   {
     for (int i(0); i < argc; ++i)
     {
-      NodeRef arg = readArgument();
+      json::Json arg = readArgument();
       arguments.append(arg);
     }
   }
@@ -455,27 +514,27 @@ NodeRef DocumentProcessor::readCommand(const StreamTokenizer::Token & token)
   {
     if (command->span() == CommandSpan::Word || command->span() == CommandSpan::NotApplicable)
     {
-      NodeRef arg = readArgument();
+      json::Json arg = readArgument();
       arguments.append(arg);
     }
     else if (command->span() == CommandSpan::Line)
     {
-      NodeRef arg = readLineArgument();
+      json::Json arg = readLineArgument();
       arguments.append(arg);
     }
     else if (command->span() == CommandSpan::Paragraph)
     {
-      NodeRef arg = readParagraphArgument();
+      json::Json arg = readParagraphArgument();
       arguments.append(arg);
     }
   }
 
-  if (!brackets.isEmpty() && !command->acceptsBracketArguments())
+  if (!opts.data().empty() && !command->acceptsOptions())
   {
     qDebug() << command->name() << "does not support bracket arguments";
   }
 
-  return command->invoke(this, brackets, arguments);
+  return command->invoke(this, opts, arguments);
 }
 
 
@@ -497,7 +556,7 @@ void DocumentProcessor::processFile(const QString & path)
 
     while (!atBlockEnd())
     {
-      NodeRef node = read();
+      json::Json node = read();
       if (!node.isNull())
         mState->dispatch(node);
     }

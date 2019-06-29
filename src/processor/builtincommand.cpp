@@ -4,8 +4,6 @@
 
 #include "dex/processor/builtincommand.h"
 
-#include "dex/processor/groupnode.h"
-#include "dex/processor/node.h"
 #include "dex/processor/documentprocessor.h"
 
 #include <QDebug>
@@ -13,11 +11,11 @@
 namespace dex
 {
 
-BuiltinCommand::BuiltinCommand(const QString & name, int param_count, CommandSpan::Value span, bool accepts_brackets)
+BuiltinCommand::BuiltinCommand(const QString & name, int param_count, CommandSpan::Value span, bool accepts_opts)
   : mName(name)
   , mParamCount(param_count)
   , mSpan(span)
-  , mAcceptsBracketArguments(accepts_brackets)
+  , mAcceptsOptions(accepts_opts)
 {
 
 }
@@ -37,9 +35,9 @@ CommandSpan::Value BuiltinCommand::span() const
   return mSpan;
 }
 
-bool BuiltinCommand::acceptsBracketArguments() const
+bool BuiltinCommand::acceptsOptions() const
 {
-  return mAcceptsBracketArguments;
+  return mAcceptsOptions;
 }
 
 
@@ -49,14 +47,14 @@ BeginCommand::BeginCommand()
 
 }
 
-QString BeginCommand::getEnvironmentName(const QList<NodeRef> & args)
+QString BeginCommand::getEnvironmentName(const QList<json::Json> & args)
 {
-  NodeRef arg = args.front();
+  json::Json arg = args.front();
 
   QString env_name;
-  if (arg.isWord())
+  if (DocumentProcessor::isWord(arg))
     env_name = arg.toString();
-  else if (arg.isGroup())
+  else if (arg.isArray())
     env_name = arg.at(0).toString();
   else
     throw std::runtime_error{ "Invalid argument to begin" };
@@ -64,7 +62,7 @@ QString BeginCommand::getEnvironmentName(const QList<NodeRef> & args)
   return env_name;
 }
 
-QSharedPointer<Environment> BeginCommand::get_environment(DocumentProcessor *processor, const QList<NodeRef> & args)
+QSharedPointer<Environment> BeginCommand::get_environment(DocumentProcessor *processor, const QList<json::Json>& args)
 {
   QString env_name = getEnvironmentName(args);
 
@@ -78,14 +76,14 @@ QSharedPointer<Environment> BeginCommand::get_environment(DocumentProcessor *pro
   return env;
 }
 
-NodeRef BeginCommand::invoke(DocumentProcessor *processor, const BracketsArguments & brackets, const QList<NodeRef> & arguments)
+json::Json BeginCommand::invoke(DocumentProcessor *processor, const Options& opts, const QList<json::Json> & arguments)
 {
   auto env = get_environment(processor, arguments);
 
-  env->enter(brackets);
+  env->enter(opts);
   processor->enter(env);
 
-  return NodeRef{};
+  return nullptr;
 }
 
 
@@ -95,14 +93,14 @@ EndCommand::EndCommand()
 
 }
 
-NodeRef EndCommand::invoke(DocumentProcessor *processor, const BracketsArguments & brackets, const QList<NodeRef> & arguments)
+json::Json EndCommand::invoke(DocumentProcessor *processor, const Options& opts, const QList<json::Json> & arguments)
 {
   auto env = BeginCommand::get_environment(processor, arguments);
 
   env->leave();
   processor->leave();
 
-  return NodeRef{};
+  return nullptr;
 }
 
 
@@ -112,16 +110,16 @@ InputCommand::InputCommand()
 
 }
 
-NodeRef InputCommand::invoke(DocumentProcessor *processor, const BracketsArguments & brackets, const QList<NodeRef> & arguments)
+json::Json InputCommand::invoke(DocumentProcessor *processor, const Options& opts, const QList<json::Json> & arguments)
 {
   QString file;
-  if (arguments.first().isWord())
+  if (DocumentProcessor::isWord(arguments.first()))
   {
     file = arguments.first().toString();
   }
-  else if (arguments.first().isGroup())
+  else if (arguments.first().isArray())
   {
-    file = arguments.first().getNode().asGroupNode().toString();
+    file = processor->stringify(arguments.first().toArray());
   }
   else
   {
@@ -131,7 +129,7 @@ NodeRef InputCommand::invoke(DocumentProcessor *processor, const BracketsArgumen
 
   processor->input(file);
 
-  return NodeRef{};
+  return nullptr;
 }
 
 } // namespace dex

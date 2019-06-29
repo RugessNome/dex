@@ -26,42 +26,43 @@ public:
 
   void enter(const Ref<Node> & n)
   {
-	stack.push_back(n);
+    print("State::enter() called");
+	  stack.push_back(n);
   }
   
   Ref<Node> leave()
   {
-	Ref<Node> ret = stack.back();
-	stack.pop_back();
-	return ret;
+	  Ref<Node> ret = stack.back();
+	  stack.pop_back();
+	  return ret;
   }
 
-  void dispatch(const Ref<Node> & node)
+  void dispatch(const json::Json& node)
   {
-	if(stack.isEmpty())
-	{
-	  if(node.is<Space>() || node.is<EndOfLine>())
+	  if(stack.isEmpty())
+	  {
+	    if(serialization::canDecode<Space>(node) || serialization::canDecode<EOL>(node))
+	      return;
+	  
+	    print("Error while dispatching node, entity stack is empty");
 	    return;
-	
-	  print("Error while dispatching node, entity stack is empty");
-	  return;
-	}
-  
+	  }
+    
     if(stack.back().is<Class>())
     {
       Class & c = stack.back().as<Class>();
-	  c.description.get().push_back(node);
+	    c.description.push(node);
     }
-	else if(stack.back().is<Function>())
+	  else if(stack.back().is<Function>())
     {
       Function & fun = stack.back().as<Function>();
-	  fun.description.get().push_back(node);
+	    fun.description.push(node);
     }
-	else if(stack.back().is<CodeBlock>())
-	{
-	  CodeBlock & cb = stack.back().as<CodeBlock>();
-	  cb.nodes.get().push_back(node);
-	}
+	  else if(stack.back().is<CodeBlock>())
+	  {
+	    CodeBlock & cb = stack.back().as<CodeBlock>();
+	    cb.nodes.push(node);
+	  }
   }
 
 protected:
@@ -80,7 +81,7 @@ protected:
     print("Processing file :" + path);
   }
 
-  void endFile(const String & path)
+  void endFile()
   {
     stack.clear();
   }

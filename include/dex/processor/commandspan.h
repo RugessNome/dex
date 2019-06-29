@@ -27,6 +27,8 @@ public:
     Paragraph,
   };
 
+  Value value = NotApplicable;
+
   static script::Type getBaseType();
   static script::Type getType(Value val);
 
@@ -45,6 +47,36 @@ public:
   static script::Value expose(Value val, script::Engine *e);
 };
 
+namespace span
+{
+
+class Word : public CommandSpan
+{
+public:
+  Word() { value = CommandSpan::Word; }
+};
+
+class Line : public CommandSpan
+{
+public:
+  Line() { value = CommandSpan::Line; }
+};
+
+class Paragraph : public CommandSpan
+{
+public:
+  Paragraph() { value = CommandSpan::Paragraph; }
+};
+
+} // namespace span
+
 } // namespace dex
+
+namespace script
+{
+template<> struct make_type_helper<dex::span::Word> { static Type get() { return Type::DexSpanWord; } };
+template<> struct make_type_helper<dex::span::Line> { static Type get() { return Type::DexSpanLine; } };
+template<> struct make_type_helper<dex::span::Paragraph> { static Type get() { return Type::DexSpanParagraph; } };
+} // namespace script
 
 #endif // DEX_COMMAND_SPAN_H

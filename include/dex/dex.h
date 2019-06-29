@@ -31,15 +31,13 @@ public:
   Application(int & argc, char **argv);
   ~Application();
 
-  inline script::Engine * scriptEngine() { return &mEngine; }
-
   int run();
 
   void setup();
 
   void process(const QString & dirPath);
 
-  void output(const QString & outputname, const QString & dir);
+  void output(const QString & dir);
 
   QDir inputDirectory() const;
   QDir outputDirectory() const;
@@ -52,10 +50,13 @@ public:
 
   dex::DocumentProcessor* documentProcessor();
 
+  static script::Engine* scriptEngine();
+
 private:
   void parserCommandLineArgs();
+  void fetchModules();
+  void fetchModule(const QString& dirpath);
 
-  void load_nodes();
   void load_state();
   void load_outputs();
 
@@ -78,7 +79,8 @@ private:
   CommandLineOptions mCliOptions;
 
   std::unique_ptr<dex::DocumentProcessor> mDocumentProcessor;
-  QList<QSharedPointer<dex::Output>> mOutputs;
+  //QList<QSharedPointer<dex::Output>> mOutputs;
+  std::vector<std::unique_ptr<dex::Output>> mOutputs;
   QSettings *mSettings;
 };
 
@@ -86,5 +88,9 @@ private:
 #undef qApp
 #endif
 #define qApp (static_cast<Application *>(QCoreApplication::instance()))
+
+#define Dex Application
+
+inline Application* DexInstance() { return static_cast<Application*>(QCoreApplication::instance()); }
 
 #endif // DEX_H

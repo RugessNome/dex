@@ -1,0 +1,26 @@
+
+import model.node;
+
+struct TextBold
+{
+public:
+  json::Json content;
+
+  TextBold() = default;
+  TextBold(const TextBold&) = default;
+  ~TextBold() = default;
+
+  TextBold(const json::Json& c) : content(c) { }
+};
+
+struct TextItalic
+{
+public:
+  json::Json content;
+
+  TextItalic() = default;
+  TextItalic(const TextItalic&) = default;
+  ~TextItalic() = default;
+
+  TextItalic(const json::Json& c) : content(c) { }
+};

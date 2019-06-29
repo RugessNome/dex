@@ -4,7 +4,7 @@
 
 #include "dex/processor/userenvironment.h"
 
-#include "dex/processor/bracketsarguments.h"
+#include "dex/core/options.h"
 #include "dex/processor/command.h"
 
 #include <script/engine.h>
@@ -26,7 +26,7 @@ QSharedPointer<Environment> Environment::build(const script::Namespace & ns)
       leave_function = f;
     }
     else if (f.name() == "begin" && f.returnType() == script::Type::Void && f.prototype().size() == 1
-      && f.parameter(0) == BracketsArguments::type_info().type)
+      && f.parameter(0) == script::make_type<Options>())
     {
       enter_function = f;
     }
@@ -74,10 +74,13 @@ QString UserEnvironment::name() const
   return mEnterFunction.enclosingNamespace().name().data();
 }
 
-void UserEnvironment::enter(const BracketsArguments & brackets)
+void UserEnvironment::enter(const Options& opts)
 {
   script::Engine *e = mEnterFunction.engine();
-  e->call(mEnterFunction, {brackets.expose(e)});
+
+  script::Value arg = e->construct<Options>(opts);
+  e->call(mEnterFunction, { arg });
+  e->destroy(arg);
 }
 
 void UserEnvironment::leave()

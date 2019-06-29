@@ -44,27 +44,22 @@ namespace callbacks
 // QList<T>();
 static script::Value default_ctor(script::FunctionCall *c)
 {
-  using namespace script;
-  new (c->thisObject().getMemory(script::passkey{})) QList<Value>{};
+  c->thisObject().init<QList<dex::Value>>();
   return c->thisObject();
 }
 
 // QList<T>(const QList<T> &);
 static script::Value copy_ctor(script::FunctionCall *c)
 {
-  using namespace script;
-  QList<Value> & other = list_cast(c->arg(1));
-  new (c->thisObject().getMemory(script::passkey{})) QList<dex::Value>{other};
+  QList<dex::Value>& other = list_cast(c->arg(1));
+  c->thisObject().init<QList<dex::Value>>(other);
   return c->thisObject();
 }
 
 // ~QList<T>();
 static script::Value dtor(script::FunctionCall *c)
 {
-  using namespace script;
-  QList<Value> & self = list_cast(c->thisObject());
-  self.~QList<Value>();
-  c->thisObject().releaseMemory(script::passkey{});
+  c->thisObject().destroy<QList<dex::Value>>();
   return script::Value::Void;
 }
 
@@ -798,7 +793,7 @@ void register_list_template(script::Namespace n)
     .setCallback(list_template_instantiate)
     .get();
 
-  n.engine()->implementation()->list_template_ = list_template;
+  n.engine()->implementation()->templates.list_template = list_template;
 }
 
 } // namespace dex

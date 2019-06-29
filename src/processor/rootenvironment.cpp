@@ -4,7 +4,6 @@
 
 #include "dex/processor/rootenvironment.h"
 
-#include "dex/processor/bracketsarguments.h"
 #include "dex/processor/command.h"
 
 #include <script/class.h>
@@ -50,9 +49,9 @@ void RootEnvironment::fill(const script::Script & s)
   }
 }
 
-void RootEnvironment::enter(const BracketsArguments & brackets) 
+void RootEnvironment::enter(const Options& opts)
 {
-  (void)brackets;
+  (void)opts;
 }
 
 void RootEnvironment::leave()

@@ -5,32 +5,28 @@
 #include "dex/dex.h"
 
 #include "dex/core/list.h"
+#include "dex/core/null.h"
+#include "dex/core/options.h"
+#include "dex/core/output.h"
 #include "dex/core/ref.h"
+#include "dex/core/serialization.h"
 
-#include "dex/processor/endoflinenode.h"
-#include "dex/processor/groupnode.h"
-#include "dex/processor/spacenode.h"
-#include "dex/processor/wordnode.h"
-
-#include "dex/processor/bracketsarguments.h"
 #include "dex/api/api.h"
-#include "dex/core/variant.h"
 
 #include "dex/processor/documentprocessor.h"
 #include "dex/processor/rootenvironment.h"
-
-#include "dex/liquid/liquid.h"
-
-#include "dex/processor/output.h"
 
 #include <script/class.h>
 #include <script/classbuilder.h>
 #include <script/destructorbuilder.h>
 #include <script/enum.h>
 #include <script/functionbuilder.h>
+#include <script/module.h>
 #include <script/interpreter/executioncontext.h>
 #include <script/script.h>
 
+#include <QDir>
+#include <QDirIterator>
 #include <QSettings>
 
 #include <QDebug>
@@ -85,15 +81,21 @@ Application::Application(int & argc, char **argv)
 {
   mEngine.setup();
 
-  mEngine.reserveTypeRange(script::Type::FirstEnumType, script::Type::LastEnumType);
+  //mEngine.reserveTypeRange(script::Type::FirstEnumType, script::Type::LastEnumType);
   mEngine.reserveTypeRange(script::Type::FirstClassType, script::Type::LastClassType);
 
-  dex::register_ref_template(mEngine.rootNamespace());
-  dex::register_list_template(mEngine.rootNamespace());
-  dex::Variant::register_type(mEngine.rootNamespace());
+  script::Namespace ns = mEngine.rootNamespace();
+
+  dex::Null::expose(ns);
+  dex::register_ref_template(ns);
+  dex::register_list_template(ns);
+
+  script::Namespace json_namespace = mEngine.rootNamespace().newNamespace("json");
+  dex::registerJsonTypes(json_namespace);
+  dex::Options::expose(ns);
+  dex::serialization::expose(ns);
 
   dex::api::expose(&mEngine);
-  dex::liquid::expose(&mEngine);
 
   mEngine.rootNamespace().newFunction("profileDirectory", script::callbacks::profile_directory)
     .returns(script::Type::String)
@@ -126,13 +128,18 @@ int Application::run()
     parserCommandLineArgs();
     setup();
     process(inputDirectory().absolutePath());
-    output(outputFormat(), outputDirectory().absolutePath());
+    output(outputDirectory().absolutePath());
     mState.destroy();
   }
   catch (std::runtime_error & ex)
   {
     qDebug() << "Fatal error:" << QString(ex.what());
-    mState.destroy();
+    
+    if (!mState.get().isNull())
+    {
+      mState.destroy();
+    }
+
     return 1;
   }
 
@@ -149,8 +156,7 @@ void Application::setup()
     throw std::runtime_error{ "Profile dir does not exists" };
   }
 
-  scriptEngine()->setScriptExtension(".dex");
-  scriptEngine()->setSearchDirectory(std::string{ activeProfileDir().absolutePath().toUtf8().data() });
+  fetchModules();
 
   script::Class parser = scriptEngine()->rootNamespace().newClass("Parser").get();
   parser.newDestructor(script::callbacks::dummy).create();
@@ -164,12 +170,15 @@ void Application::setup()
 
   dex::DocumentProcessor::registerApi(scriptEngine());
 
+  dex::Output::expose(scriptEngine()->rootNamespace());
+
   load_state();
-  load_nodes();
 
   mState = dex::State::create(scriptEngine());
   scriptEngine()->rootNamespace().addValue("state", mState);
   scriptEngine()->manage(mState);
+
+  scriptEngine()->getModule("commands").load();
 
   QDir commands = QDir{ activeProfileDir().absoluteFilePath("commands") };
   QList<script::Script> scripts;
@@ -200,6 +209,17 @@ void Application::setup()
   mState.init();
 
   load_outputs();
+
+  for (const auto& o : mOutputs)
+  {
+    if (o->name() == outputFormat())
+    {
+      dex::Output::staticCurrentOutput = o.get();
+    }
+  }
+
+  if (dex::Output::staticCurrentOutput == nullptr)
+    throw std::runtime_error{ "Could not find valid output" };
 }
 
 void Application::parserCommandLineArgs()
@@ -233,110 +253,49 @@ void Application::parserCommandLineArgs()
   }
 }
 
-static void register_node_type(Application &app, const script::Class &node)
+static void fetch_module(script::Module& m, const QDir& dir)
 {
-  dex::Node::register_node_type(node);
-}
+  QDirIterator it{ dir.absolutePath(), QDir::NoDotAndDotDot | QDir::Files | QDir::Dirs };
 
-static void register_word_node_type(Application &app, const script::Class &wordnode)
-{
-  auto& ti = dex::WordNode::type_info();
-  ti.type = wordnode.id();
-
-  for (const auto & f : wordnode.memberFunctions())
+  while (it.hasNext())
   {
-    if (f.name() == "value" && f.returnType().baseType() == script::Type::String && f.prototype().size() == 1)
+    QString path = it.next();
+    QFileInfo info{ path };
+
+    if (info.isDir())
     {
-      ti.get_value = f;
-      return;
+      script::Module submodule = m.newSubModule(info.fileName().toStdString());
+      fetch_module(submodule, QDir{ path });
+    }
+    else if(info.suffix() == "dex")
+    {
+      m.newSubModule(info.baseName().toStdString(), script::SourceFile(path.toStdString()));
     }
   }
-
-  throw std::runtime_error{ "Could not find WordNode::value() member function" };
 }
 
-static void register_space_node_type(Application &app, const script::Class &spacenode)
+void Application::fetchModule(const QString& dirpath)
 {
-  auto& ti = dex::SpaceNode::type_info();
-  ti.type = spacenode.id();
-
-  for (const auto & f : spacenode.memberFunctions())
-  {
-    if (f.name() == "value" && f.returnType().baseType() == script::Type::String && f.prototype().size() == 1)
-    {
-      ti.get_value = f;
-      return;
-    }
-  }
-
-  throw std::runtime_error{ "Could not find Space::value() member function" };
+  QDir subdir{ dirpath };
+  script::Module m = scriptEngine()->newModule(subdir.dirName().toStdString());
+  fetch_module(m, subdir);
 }
 
-static void register_eol_node_type(Application &app, const script::Class &eolnode)
+void Application::fetchModules()
 {
-  auto& ti = dex::EndOfLineNode::type_info();
-  ti.type = eolnode.id();
-}
+  qDebug() << "Fetching all modules in" << activeProfileDir().absolutePath();
 
+  QDirIterator iterator{ activeProfileDir().absolutePath(), QDir::NoDotAndDotDot | QDir::Files | QDir::Dirs };
 
-static void register_groupnode_type(Application & app, const script::Class &groupnode)
-{
-  if (!groupnode.inherits(app.scriptEngine()->getClass(dex::Node::type_info().type)))
-    throw std::runtime_error{ "GroupNode class must be derived from Node" };
-
-  auto& ti = dex::GroupNode::type_info();
-  ti.type = groupnode.id();
-
-  for (const auto & f : groupnode.memberFunctions())
+  while (iterator.hasNext())
   {
-    if (f.name() == "size" && f.returnType() == script::Type::Int && f.prototype().size() == 1)
-      ti.size = f;
-    else if (f.name() == "at" && f.returnType().baseType() == dex::NodeRef::type_info().type
-      && f.prototype().size() == 2 && f.prototype().at(1).baseType() == script::Type::Int)
-      ti.at = f;
-    else if (f.name() == "push_back" && f.parameter(1).baseType() == dex::NodeRef::type_info().type)
-      ti.push_back = f;
-  }
+    QString dirpath = iterator.next();
+    QFileInfo info{ dirpath };
 
-  if (ti.size.isNull() || ti.at.isNull() || ti.push_back.isNull())
-    throw std::runtime_error{ "One or more required member functions of GroupNode could not be found" };
-}
-
-/// TODO: move to Document processor
-void Application::load_nodes()
-{
-  using namespace script;
-
-  typedef void(*ClassActionCallback)(Application&, const script::Class&);
-  QMap<std::string, ClassActionCallback> actions;
-  actions["Node"] = register_node_type;
-  actions["EndOfLine"] = register_eol_node_type;
-  actions["Space"] = register_space_node_type;
-  actions["GroupNode"] = register_groupnode_type;
-  actions["WordNode"] = register_word_node_type;
-
-  for (const auto & sc : scriptEngine()->scripts())
-  {
-    for (const auto & c : sc.classes())
-    {
-      if (actions.contains(c.name()))
-      {
-        auto action = actions.value(c.name(), nullptr);
-        actions.remove(c.name());
-        action(*this, c);
-      }
-    }
-  }
-
-  if (!actions.isEmpty())
-  {
-    qDebug() << "The following required types could not be found after loading State class :";
-    for (const auto k : actions.keys())
-      qDebug() << k.data();
-    throw std::runtime_error{ "Some required types could not be found" };
+    if(info.isDir())
+      fetchModule(dirpath);
   }
 }
-
 
 static void register_state_type(Application &app, const script::Class &state)
 {
@@ -390,19 +349,9 @@ void Application::process(const QString & dirPath)
   mDocumentProcessor->process(dir);
 }
 
-void Application::output(const QString & outputname, const QString & dir)
+void Application::output(const QString & dir)
 {
-  for (const auto & out : mOutputs)
-  {
-    if (out->name() != outputname)
-      continue;
-
-    out->invoke(dir);
-    return;
-  }
-
-  qDebug() << "No output found with name " << outputname;
-  throw std::runtime_error{ "Output format not supported" };
+  dex::Output::current()->write(dir);
 }
 
 QDir Application::inputDirectory() const
@@ -463,6 +412,11 @@ dex::DocumentProcessor* Application::documentProcessor()
   return mDocumentProcessor.get();
 }
 
+script::Engine* Application::scriptEngine()
+{
+  return &DexInstance()->mEngine;
+}
+
 static void load_outputs_scripts_recur(Application & app, QList<script::Script> & scripts, const QDir & dir)
 {
   script::Engine *engine = app.scriptEngine();
@@ -495,42 +449,58 @@ static void load_outputs_scripts_recur(Application & app, QList<script::Script> 
   }
 }
 
-static QList<QSharedPointer<dex::Output>> load_outputs(QList<script::Script> & scripts)
-{
-  QList<QSharedPointer<dex::Output>> result;
-
-  for (auto s : scripts)
-  {
-    auto output_ns = s.rootNamespace().findNamespace("output");
-    if (output_ns.isNull())
-      continue;
-
-    for (const auto & f : output_ns.functions())
-    {
-      QSharedPointer<dex::Output> output = dex::Output::build(f);
-      if (output != nullptr)
-        result.append(output);
-    }
-    
-    /// TODO: Should we rather run the scripts just before calling the output function ?
-    // And therefore only call run() for the output script that is actually used.
-    s.run();
-  }
-
-  return result;
-}
+//static QList<QSharedPointer<dex::Output>> load_outputs(QList<script::Script> & scripts)
+//{
+//  QList<QSharedPointer<dex::Output>> result;
+//
+//  for (auto s : scripts)
+//  {
+//    auto output_ns = s.rootNamespace().findNamespace("output");
+//    if (output_ns.isNull())
+//      continue;
+//
+//    for (const auto & f : output_ns.functions())
+//    {
+//      QSharedPointer<dex::Output> output = dex::Output::build(f);
+//      if (output != nullptr)
+//        result.append(output);
+//    }
+//    
+//    /// TODO: Should we rather run the scripts just before calling the output function ?
+//    // And therefore only call run() for the output script that is actually used.
+//    s.run();
+//  }
+//
+//  return result;
+//}
 
 void Application::load_outputs()
 {
-  QList<script::Script> scripts;
-  QDir output = activeProfileDir();
-  output.cd("output");
-  if (!output.exists())
+  script::Module m = scriptEngine()->getModule("output");
+
+  m.load();
+
+  for (const script::Script& s : scriptEngine()->scripts())
   {
-    qDebug() << "No output directory in the profile";
-    throw std::runtime_error{ "Missing output directory in profile" };
+    for (const script::Class& c : s.classes())
+    {
+      if (c.inherits(scriptEngine()->getClass(script::Type::DexOutput)))
+      {
+        script::Value impl = scriptEngine()->construct(c.id(), {});
+        mOutputs.push_back(std::unique_ptr<dex::Output>(new dex::Output(impl)));
+      }
+    }
   }
 
-  load_outputs_scripts_recur(*this, scripts, output);
-  mOutputs = ::load_outputs(scripts);
+  //QList<script::Script> scripts;
+  //QDir output = activeProfileDir();
+  //output.cd("output");
+  //if (!output.exists())
+  //{
+  //  qDebug() << "No output directory in the profile";
+  //  throw std::runtime_error{ "Missing output directory in profile" };
+  //}
+
+  //load_outputs_scripts_recur(*this, scripts, output);
+  //mOutputs = ::load_outputs(scripts);
 }

@@ -5,7 +5,7 @@ import model.list;
 namespace list
 {
 
-void begin(BracketArguments args)
+void begin(Options opts)
 {
   auto l = Ref<ListNode>::make();
   state.enter(l);
@@ -14,10 +14,10 @@ void begin(BracketArguments args)
 void end()
 {
   auto l = state.leave();
-  state.dispatch(l);
+  state.dispatch(serialization::encode(l.get()));
 }
 
-void li(const Ref<Node> & item, Span::Line)
+void li(const json::Json & item, Span::Line)
 {
   if (!state.current().is<ListNode>())
   {
@@ -26,7 +26,7 @@ void li(const Ref<Node> & item, Span::Line)
   }
 
   ListNode & list = state.current().as<ListNode>();
-  list.items.push_back(item);
+  list.items.push(item);
 }
 
 } // namespace list

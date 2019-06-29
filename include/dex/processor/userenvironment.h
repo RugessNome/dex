@@ -19,7 +19,7 @@ public:
 
   QString name() const override;
 
-  void enter(const BracketsArguments & brackets) override;
+  void enter(const Options& opts) override;
   void leave() override;
 
 private:

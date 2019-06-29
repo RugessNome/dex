@@ -21,75 +21,116 @@ find_package(Qt5Widgets)
 ###### libscript
 ##################################################################
 
-add_subdirectory(lib)
+## Patch liquid
 
-##################################################################
-###### core
-##################################################################
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/patch/libscript.patch" "${CMAKE_CURRENT_SOURCE_DIR}/libscript/libscript.patch" COPYONLY)
 
-file(GLOB_RECURSE CORE_SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/core/*.cpp)
-file(GLOB_RECURSE CORE_HDR_FILES 
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/dex/core/*.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/core/*.h
+execute_process (
+    COMMAND git "apply" "libscript.patch"
+	WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/libscript"
+	RESULT_VARIABLE GIT_PATCH_LIBSCRIPT_RESULT
 )
-add_library(core STATIC ${CORE_HDR_FILES} ${CORE_SRC_FILES})
-target_include_directories(core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
-target_include_directories(core PUBLIC "${LIBSCRIPT_PROJECT_DIR}/include")
-target_include_directories(core PUBLIC "lib/libscript")
-target_link_libraries(core Qt5::Core)
-target_link_libraries(core Qt5::Widgets)
-target_link_libraries(core libscript)
 
-##################################################################
-###### api
-##################################################################
+## Create libscript target
 
-file(GLOB_RECURSE API_SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/api/*.cpp)
-file(GLOB_RECURSE API_HDR_FILES 
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/dex/api/*.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/api/*.h
+file(GLOB_RECURSE LIBSCRIPT_SRC_FILES ${LIBSCRIPT_PROJECT_DIR}/src/*.cpp)
+file(GLOB_RECURSE LIBSCRIPT_HDR_FILES 
+  ${LIBSCRIPT_PROJECT_DIR}/include/*.h
+  ${LIBSCRIPT_PROJECT_DIR}/src/*.h
 )
-add_library(api STATIC ${API_HDR_FILES} ${API_SRC_FILES})
-add_dependencies(api core)
-target_link_libraries(api core)
+
+add_library(libscript SHARED ${LIBSCRIPT_HDR_FILES} ${LIBSCRIPT_SRC_FILES})
+target_include_directories(libscript PUBLIC "${LIBSCRIPT_PROJECT_DIR}/include")
+target_compile_definitions(libscript PRIVATE -DLIBSCRIPT_COMPILE_LIBRARY)
+#target_compile_definitions(libscript PUBLIC -DLIBSCRIPT_STATIC_LINKING)
+target_link_libraries(libscript Qt5::Core)
+target_link_libraries(libscript Qt5::Gui)
+target_link_libraries(libscript Qt5::Widgets)
+
+foreach(_source IN ITEMS ${LIBSCRIPT_HDR_FILES} ${LIBSCRIPT_SRC_FILES})
+    get_filename_component(_source_path "${_source}" PATH)
+    file(RELATIVE_PATH _source_path_rel "${CMAKE_CURRENT_SOURCE_DIR}" "${_source_path}")
+    string(REPLACE "/" "\\" _group_path "${_source_path_rel}")
+    source_group("${_group_path}" FILES "${_source}")
+endforeach()
+
+set_target_properties(libscript PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+set_target_properties(libscript PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
 ##################################################################
 ###### liquid
 ##################################################################
 
-file(GLOB_RECURSE LIQUID_SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/liquid/*.cpp)
-file(GLOB_RECURSE LIQUID_HDR_FILES 
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/dex/liquid/*.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/liquid/*.h
-)
-add_library(liquid STATIC ${LIQUID_HDR_FILES} ${LIQUID_SRC_FILES})
-add_dependencies(liquid core)
-target_link_libraries(liquid core)
+set(LIQUID_PROJECT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/liquid" CACHE PATH "Provide the directory of the liquid library")
 
-##################################################################
-###### processor
-##################################################################
+## Patch liquid
 
-file(GLOB_RECURSE PROCESSOR_SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/processor/*.cpp)
-file(GLOB_RECURSE PROCESSOR_HDR_FILES 
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/dex/processor/*.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/processor/*.h
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/patch/liquid.patch" "${CMAKE_CURRENT_SOURCE_DIR}/liquid/liquid.patch" COPYONLY)
+
+execute_process (
+    COMMAND git "apply" "liquid.patch"
+	WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/liquid"
+	RESULT_VARIABLE GIT_PATCH_LIQUID_RESULT
 )
 
-add_library(processor STATIC ${PROCESSOR_HDR_FILES} ${PROCESSOR_SRC_FILES})
-add_dependencies(processor api)
-target_link_libraries(processor api)
-add_dependencies(processor liquid)
-target_link_libraries(processor liquid)
+## Copy JSON config
+
+file(COPY "${LIQUID_PROJECT_DIR}/include/liquid/json-config.h" DESTINATION "${LIQUID_PROJECT_DIR}/json-toolkit/include/json-toolkit")
+file(GLOB_RECURSE JSONTOOLKIT_HDR_FILES ${LIQUID_PROJECT_DIR}/json-toolkit/include/*.h)
+add_custom_target(json-toolkit SOURCES ${JSONTOOLKIT_HDR_FILES})
+
+## Create target
+
+file(GLOB_RECURSE LIQUID_SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/liquid/src/*.cpp)
+file(GLOB_RECURSE LIQUID_HDR_FILES ${CMAKE_CURRENT_SOURCE_DIR}/liquid/include/*.h)
+add_library(liquid SHARED ${LIQUID_HDR_FILES} ${LIQUID_SRC_FILES})
+target_compile_definitions(liquid PRIVATE -DLIQUID_BUILD_SHARED_LIBRARY)
+target_compile_definitions(liquid PUBLIC -DJSONTOOLKIT_HAS_CONFIG)
+target_include_directories(liquid PUBLIC "${LIQUID_PROJECT_DIR}/json-toolkit/include")
+target_include_directories(liquid PUBLIC "${LIQUID_PROJECT_DIR}/include")
+target_link_libraries(liquid Qt5::Core)
+
+set_target_properties(liquid PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+set_target_properties(liquid PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
 ##################################################################
-###### dex
+###### dex library
 ##################################################################
 
-add_executable(dex "include/dex/dex.h" "src/dex.cpp" "src/main.cpp")
+file(GLOB_RECURSE DEX_LIBRARY_SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
+file(GLOB_RECURSE DEX_LIBRARY_HDR_FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/dex/*.h)
+
+list(FILTER DEX_LIBRARY_SRC_FILES EXCLUDE REGEX "main.cpp")
+
+add_library(dex STATIC ${DEX_LIBRARY_HDR_FILES} ${DEX_LIBRARY_SRC_FILES})
 target_include_directories(dex PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
-add_dependencies(dex processor)
-target_link_libraries(dex processor)
+target_include_directories(dex PUBLIC "${LIBSCRIPT_PROJECT_DIR}/include")
+target_include_directories(dex PUBLIC "${LIQUID_PROJECT_DIR}/include")
+target_include_directories(dex PUBLIC "${LIQUID_PROJECT_DIR}/json-toolkit/include")
+target_include_directories(dex PUBLIC "lib/libscript")
+target_link_libraries(dex Qt5::Core)
+target_link_libraries(dex Qt5::Widgets)
+target_link_libraries(dex libscript)
+target_link_libraries(dex liquid)
+
+foreach(_source IN ITEMS ${DEX_LIBRARY_HDR_FILES} ${DEX_LIBRARY_SRC_FILES})
+    get_filename_component(_source_path "${_source}" PATH)
+    file(RELATIVE_PATH _source_path_rel "${CMAKE_CURRENT_SOURCE_DIR}" "${_source_path}")
+    string(REPLACE "/" "\\" _group_path "${_source_path_rel}")
+    source_group("${_group_path}" FILES "${_source}")
+endforeach()
+
+set_target_properties(dex PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+set_target_properties(dex PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+
+##################################################################
+###### dex exceutable
+##################################################################
+
+add_executable(app "src/main.cpp")
+target_include_directories(app PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+add_dependencies(app dex)
+target_link_libraries(app dex)
 
 #file(COPY "profiles" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 add_custom_command(TARGET dex POST_BUILD

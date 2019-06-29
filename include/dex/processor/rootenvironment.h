@@ -24,7 +24,7 @@ public:
 
   void fill(const script::Script & s);
 
-  void enter(const BracketsArguments & brackets) override;
+  void enter(const Options& opts) override;
   void leave() override;
 };
 

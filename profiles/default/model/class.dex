@@ -6,14 +6,14 @@ class Class : Node
 {
 public:
   String name;
-  Ref<Node> brief;
+  json::Json brief;
   List<Ref<Function>> functions;
-  Ref<GroupNode> description;
+  json::Array description;
 public:
   Class(const String & n)
     : name(n)
   {
-    description = Ref<GroupNode>::make();
+    
   }
 
   ~Class() 

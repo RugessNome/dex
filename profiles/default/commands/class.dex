@@ -12,16 +12,17 @@ public:
 
   void operator()(const String & name)
   {
+    print("Start class " + name);
     auto ret = Ref<Class>::make(name);
-    state.stack.append(ret);
     state.classes.append(ret);
+    state.enter(ret);
   }
 };
 
 void endclass()
 {
   while(!state.stack.back().is<Class>())
-	state.stack.pop_back();
+	  state.stack.pop_back();
 
   state.stack.pop_back();
 }

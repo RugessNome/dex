@@ -26,20 +26,19 @@ namespace callbacks
 
 static script::Value ctor(script::FunctionCall *c)
 {
-  new (c->thisObject().getMemory(script::passkey{})) QFile{};
+  c->thisObject().init<QFile>();
   return c->thisObject();
 }
 
 static script::Value dtor(script::FunctionCall *c)
 {
-  (static_cast<QFile*>(c->thisObject().memory()))->~QFile();
-  c->thisObject().releaseMemory(script::passkey{});
+  c->thisObject().destroy<QFile>();
   return script::Value::Void;
 }
 
 static script::Value ctor_string(script::FunctionCall *c)
 {
-  new (c->thisObject().getMemory(script::passkey{})) QFile{ c->arg(1).toString() };
+  c->thisObject().init<QFile>(c->arg(1).toString());
   return c->thisObject();
 }
 

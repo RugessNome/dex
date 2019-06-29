@@ -1,8 +1,10 @@
 
 import model;
 
-void fun(const Ref<Node> & name, Span::Line)
+void fun(const json::Json & name, Span::Line)
 {
+  print("Start fun --");
+
   if(state.stack.isEmpty())
   {
     print("fun not allowed in this context : empty stack");
@@ -11,9 +13,9 @@ void fun(const Ref<Node> & name, Span::Line)
   if(state.stack.back().is<Class>())
   {
     auto func = Ref<Function>::make(name);
-	Class & c = state.stack.back().as<Class>();
-	c.functions.push_back(func);
-	state.stack.push_back(func);
+	  Class & c = state.stack.back().as<Class>();
+	  c.functions.push_back(func);
+	  state.stack.push_back(func);
   }
   else
   {
@@ -22,7 +24,7 @@ void fun(const Ref<Node> & name, Span::Line)
 }
 
 
-void param(const Ref<Node> & description, Span::Line)
+void param(const json::Json & description, Span::Line)
 {
   if(state.stack.isEmpty() || !state.stack.back().is<Function>())
   {
@@ -30,11 +32,11 @@ void param(const Ref<Node> & description, Span::Line)
   }
   
   Function & func = state.currentFunction();
-  func.params.push_back(description);
+  func.params.push(description);
 }
 
 
-void returns(const Ref<Node> & description, Span::Line)
+void returns(const json::Json & description, Span::Line)
 {
   if(state.stack.isEmpty() || !state.stack.back().is<Function>())
   {
@@ -46,30 +48,29 @@ void returns(const Ref<Node> & description, Span::Line)
 }
 
 
-Ref<Node> t(const Ref<Node> & t, Span::Word)
+Type t(const json::Json & t, Span::Word)
 {
-  return Ref<Type>::make(t);
+  return Type(t);
 }
 
-Ref<Node> l(const Ref<Node> & url, const Ref<Node> & text)
+Link l(const json::Json & url, const json::Json & text)
 {
-  return Ref<Link>::make(url, text);
+  return Link(url, text);
 }
 
-Ref<Node> c(const Ref<Node> & code, Span::Word)
+InlineCode c(const json::Json & code, Span::Word)
 {
-  return Ref<InlineCode>::make(code);
+  return InlineCode(code);
 }
-
 
 namespace code
 {
 	
-void begin(BracketArguments args)
+void begin(Options opts)
 {
   auto codeblock = Ref<CodeBlock>::make();
   
-  for(auto it = args.begin(); it != args.end(); ++it)
+  for(auto it = opts.begin(); it != opts.end(); it++)
   {
     if(it.key().isEmpty() || it.key() == "lang")
 	{
@@ -83,7 +84,7 @@ void begin(BracketArguments args)
 void end()
 {
   auto codeblock = state.leave();
-  state.dispatch(codeblock);
+  state.dispatch(serialization::encode(codeblock.get()));
 }
 	
 }

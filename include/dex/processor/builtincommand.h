@@ -12,26 +12,24 @@
 namespace dex
 {
 
-class BracketsArguments;
 class Environment;
-class NodeRef;
 
 class BuiltinCommand : public Command
 {
 public:
-  BuiltinCommand(const QString & name, int param_count, CommandSpan::Value span = CommandSpan::NotApplicable, bool accepts_brackets = true);
+  BuiltinCommand(const QString & name, int param_count, CommandSpan::Value span = CommandSpan::NotApplicable, bool accepts_opts = true);
   ~BuiltinCommand() = default;
 
   QString name() const override;
   int parameterCount() const override;
   CommandSpan::Value span() const override;
-  bool acceptsBracketArguments() const override;
+  bool acceptsOptions() const override;
 
 private:
   QString mName;
   int mParamCount;
   CommandSpan::Value mSpan;
-  bool mAcceptsBracketArguments;
+  bool mAcceptsOptions;
 };
 
 class BeginCommand : public BuiltinCommand
@@ -39,10 +37,10 @@ class BeginCommand : public BuiltinCommand
 public:
   BeginCommand();
 
-  static QString getEnvironmentName(const QList<NodeRef> & args);
-  static QSharedPointer<Environment> get_environment(DocumentProcessor *processor, const QList<NodeRef> & args);
+  static QString getEnvironmentName(const QList<json::Json> & args);
+  static QSharedPointer<Environment> get_environment(DocumentProcessor *processor, const QList<json::Json>& args);
 
-  NodeRef invoke(DocumentProcessor *processor, const BracketsArguments & brackets, const QList<NodeRef> & arguments) override;
+  json::Json invoke(DocumentProcessor *processor, const Options& opts, const QList<json::Json>& arguments) override;
 };
 
 class EndCommand : public BuiltinCommand
@@ -50,7 +48,7 @@ class EndCommand : public BuiltinCommand
 public:
   EndCommand();
 
-  NodeRef invoke(DocumentProcessor *processor, const BracketsArguments & brackets, const QList<NodeRef> & arguments) override;
+  json::Json invoke(DocumentProcessor *processor, const Options& opts, const QList<json::Json>& arguments) override;
 };
 
 class InputCommand : public BuiltinCommand
@@ -58,7 +56,7 @@ class InputCommand : public BuiltinCommand
 public:
   InputCommand();
 
-  NodeRef invoke(DocumentProcessor *processor, const BracketsArguments & brackets, const QList<NodeRef> & arguments) override;
+  json::Json invoke(DocumentProcessor *processor, const Options& opts, const QList<json::Json>& arguments) override;
 };
 
 } // namespace dex

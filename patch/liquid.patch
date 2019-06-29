@@ -1,0 +1,80 @@
+diff --git a/include/liquid/liquid-string-backend.h b/include/liquid/liquid-string-backend.h
+index 5dcdac5..2c2dbe0 100644
+--- a/include/liquid/liquid-string-backend.h
++++ b/include/liquid/liquid-string-backend.h
+@@ -5,9 +5,9 @@
+ #ifndef LIQUID_STRINGBACKEND_H
+ #define LIQUID_STRINGBACKEND_H
+ 
+-
+ #include <iterator>
+-#include <string>
++
++#include <QString>
+ 
+ namespace liquid
+ {
+@@ -15,13 +15,13 @@ namespace liquid
+ class StringBackend
+ {
+ public:
+-  typedef std::string string_type;
+-  typedef std::string string_view_type;
+-  typedef char char_type;
++  typedef QString string_type;
++  typedef QStringRef string_view_type;
++  typedef QChar char_type;
+ 
+-  static int to_integer(const string_type& str) { return std::stoi(str); }
+-  static string_type from_integer(int n) { return std::to_string(n); }
+-  static string_type from_number(double x) { return std::to_string(x); }
++  static int to_integer(const string_type& str) { return str.toInt(); }
++  static string_type from_integer(int n) { return QString::number(n); }
++  static string_type from_number(double x) { return QString::number(x); }
+ 
+   static int strlength(const string_type& str) { return static_cast<int>(str.size()); }
+ 
+@@ -32,35 +32,32 @@ public:
+ 
+   static int index_of(char_type c, const string_type& str, int from = 0) 
+   { 
+-    size_t index = str.find(c, from);
+-    return index == std::string::npos ? -1 : static_cast<int>(index);
++    return str.indexOf(c, from);
+   }
+ 
+   static int index_of(const string_type& pattern, const string_type& str, int from = 0)
+   {
+-    size_t index = str.find(pattern, from);
+-    return index == std::string::npos ? -1 : static_cast<int>(index);
++    return str.indexOf(pattern, from);
+   }
+ 
+   static string_view_type mid_ref(const string_type& str, int offset, int length)
+   {
+-    return std::string(str.begin() + offset, str.begin() + offset + length);
++    return str.midRef(offset, length);
+   }
+ 
+   static string_type mid(const string_type& str, int offset, int length = -1)
+   {
+-    length = length != -1 ? length : str.size() - offset;
+-    return std::string(str.begin() + offset, str.begin() + offset + length);
++    return str.mid(offset, length);
+   }
+ 
+   static string_type normalize(const string_type& str)
+   {
+-    std::string result = str;
+-    size_t pos = result.find("\r\n");
+-    while (pos != std::string::npos)
++    QString result = str;
++    int pos = result.indexOf("\r\n");
++    while (pos != -1)
+     {
+       result.replace(pos, 2, "\n");
+-      pos = result.find("\r\n", pos);
++      pos = result.indexOf("\r\n", pos);
+     }
+     return result;
+   }

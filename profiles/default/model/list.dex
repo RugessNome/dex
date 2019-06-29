@@ -4,7 +4,7 @@ import model.node;
 class ListNode : Node
 {
 public:
-  List<Ref<Node>> items;
+  json::Array items;
 
 public:
   ListNode()

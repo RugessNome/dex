@@ -4,16 +4,26 @@ import model.node;
 class Function : Node
 {
 public:
-  Ref<Node> name;
-  Ref<Node> brief;
-  Ref<GroupNode> description;
-  Ref<Node> returns;
-  List<Ref<Node>> params;
+  json::Json name;
+  json::Json brief;
+  json::Array description;
+  json::Json returns;
+  json::Array params;
 public:
-  Function(const Ref<Node> & n)
-    : name(n)
+
+  Function()
+   : name(null),
+     brief(null),
+	 returns(null)
   {
-    description = Ref<GroupNode>::make();
+  }
+
+  Function(const json::Json & n)
+    : name(n),
+	  brief(null),
+	  returns(null)
+  {
+    
   }
 
   ~Function() = default;

@@ -1,13 +1,14 @@
 
 import model.node;
 
-class Type : SingleArgumentNode
+class Type
 {
 public:
-  Type(const Ref<Node> & n)
-    : SingleArgumentNode(n)
-  {
-  }
+  json::Json content;
 
+  Type() = default;
+  Type(const Type&) = default;
+
+  Type(const json::Json& n) : content(n) { }
   ~Type() = default;
 };

@@ -5,6 +5,7 @@
 #include "dex/core/value.h"
 
 #include "dex/core/list.h"
+#include "dex/core/ref.h"
 
 #include <script/class.h>
 #include <script/classtemplate.h>
@@ -115,7 +116,7 @@ bool Value::isRef() const
 
 script::Value Value::getRef() const
 {
-  return script::Value{ impl().getRef() };
+  return script::Value{ script::get<dex::ValuePtr>(impl()).value };
 }
 
 bool Value::isList() const

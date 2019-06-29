@@ -4,8 +4,9 @@
 
 #include "dex/processor/usercommand.h"
 
-#include "dex/processor/bracketsarguments.h"
-#include "dex/processor/node.h"
+#include "dex/core/options.h"
+
+#include "dex/core/serialization.h"
 
 #include <script/class.h>
 #include <script/engine.h>
@@ -61,7 +62,7 @@ int UserCommand::parameterCount() const
 {
   int count = mFunction.prototype().size();
 
-  if (acceptsBracketArguments())
+  if (acceptsOptions())
     count -= 1;
   if (span() != CommandSpan::NotApplicable)
     count -= 1;
@@ -96,15 +97,15 @@ CommandSpan::Value UserCommand::span() const
   return CommandSpan::NotApplicable;
 }
 
-bool UserCommand::acceptsBracketArguments() const
+bool UserCommand::acceptsOptions() const
 {
   if (mFunction.prototype().size() == 0)
     return false;
 
-  return mFunction.parameter(0).baseType() == BracketsArguments::type_info().type;
+  return mFunction.parameter(0).baseType() == script::make_type<Options>();
 }
 
-NodeRef UserCommand::invoke(DocumentProcessor*, const BracketsArguments & brackets, const QList<NodeRef> & arguments)
+json::Json UserCommand::invoke(DocumentProcessor*, const Options& opts, const QList<json::Json> & arguments)
 {
   if (parameterCount() != arguments.size())
     throw std::runtime_error{ "Invalid argument count" };
@@ -121,44 +122,35 @@ NodeRef UserCommand::invoke(DocumentProcessor*, const BracketsArguments & bracke
     values.push_back(mObject);
   }
 
-  if (acceptsBracketArguments())
+  if (acceptsOptions())
   {
-    values.push_back(brackets.expose(e));
+    values.push_back(e->construct<Options>(opts));
     ++proto_offset;
   }
 
   int span_offset = (span() != CommandSpan::NotApplicable) ? 1 : 0;
 
   for (size_t i(proto_offset); i < mFunction.prototype().size() - span_offset; ++i)
-    values.push_back(convert(arguments.at(i - proto_offset), mFunction.parameter(i)));
+    values.push_back(dex::serialization::deserialize(arguments.at(i - proto_offset), mFunction.parameter(i)));
 
   auto command_span = span();
   if (command_span != CommandSpan::NotApplicable)
     values.push_back(CommandSpan::expose(command_span, e));
 
   script::Value val = e->call(mFunction, values);
-  NodeRef result{ std::move(val) };
+  json::Json result = nullptr;
+
+  if (val != script::Value::Void)
+  {
+    result = dex::serialization::serialize(val);
+  }
 
   for (const auto & v : values)
     e->destroy(v);
 
+  e->destroy(val);
+
   return result;
-}
-
-script::Value UserCommand::convert(const NodeRef & node, const script::Type & type)
-{
-  script::Engine *e = mFunction.engine();
-
-  if (type.baseType() == script::Type::Boolean && node.isWord())
-    return e->newBool(node.toBool());
-  else if (type.baseType() == script::Type::Int && node.isWord())
-    return e->newInt(node.toInt());
-  else if (type.baseType() == script::Type::String && node.isWord())
-    return e->newString(node.toString());
-  else if (type.baseType() == NodeRef::type_info().type)
-    return e->copy(node.impl());
-
-  throw std::runtime_error{ "Could not convert argument" };
 }
 
 bool UserCommand::check(const script::Prototype & proto)
@@ -167,7 +159,7 @@ bool UserCommand::check(const script::Prototype & proto)
     return true;
 
   int i = 0;
-  if (proto.at(0).baseType() == BracketsArguments::type_info().type)
+  if (proto.at(0).baseType() == script::make_type<Options>())
     i++;
 
   while (i < proto.size())
@@ -175,7 +167,9 @@ bool UserCommand::check(const script::Prototype & proto)
     if (proto.at(i).baseType() != script::Type::Boolean
       && proto.at(i).baseType() != script::Type::Int
       && proto.at(i).baseType() != script::Type::String
-      && proto.at(i).baseType() != NodeRef::type_info().type)
+      && proto.at(i).baseType() != script::Type::JsonArray
+      && proto.at(i).baseType() != script::Type::JsonObject
+      && proto.at(i).baseType() != script::Type::Json)
     {
       if (i == proto.size() - 1)
       {
