@@ -20,6 +20,7 @@
 #include <script/overloadresolution.h>
 #include <script/templateargumentdeduction.h>
 #include <script/templatebuilder.h>
+#include <script/typesystem.h>
 #include <script/userdata.h>
 #include <script/private/engine_p.h>
 #include <script/private/value_p.h>
@@ -202,7 +203,7 @@ static script::Class get_ref_instance(const script::Class & type)
 {
   using namespace script;
 
-  ClassTemplate ct = type.engine()->getTemplate(Engine::RefTemplate);
+  ClassTemplate ct = ClassTemplate::get<RefTemplate>(type.engine());
   std::vector<TemplateArgument> args;
   args.push_back(TemplateArgument{ Type{ type.id() } });
   return ct.getInstance(args);
@@ -229,41 +230,6 @@ static void inject_conversions_recursively(script::Class & ref, const script::Cl
   inject_conversions_recursively(ref, src.parent());
 }
 
-
-
-void make_ref_deduce(script::TemplateArgumentDeduction &deduc, const script::FunctionTemplate & make_ref, const std::vector<script::TemplateArgument> & targs, const std::vector<script::Type> & itypes)
-{
-  using namespace script;
-
-  if (targs.size() != 0)
-    return deduc.fail();
-
-  std::vector<TemplateArgument> args;
-  for (const auto & t : itypes)
-  {
-    if (t.isConst())
-      args.push_back(TemplateArgument{ Type::cref(t.baseType()) });
-    else
-      args.push_back(TemplateArgument{ Type::ref(t.baseType()) });
-  }
-
-  deduc.record_deduction(0, TemplateArgument{ std::move(args) });
-}
-
-void make_ref_substitute(script::FunctionBuilder & builder, script::FunctionTemplate make_ref, const std::vector<script::TemplateArgument> & targs)
-{
-  using namespace script;
-
-  builder.returns(builder.proto_.at(0).baseType());
-  builder.setStatic();
-
-  for (const auto & p : targs.back().pack->args())
-  {
-    builder.addParam(p.type);
-  }
-}
-
-
 class MakeRefTemplateData : public script::UserData
 {
 public:
@@ -285,8 +251,8 @@ static script::Value make_ref_template(script::FunctionCall *c)
   std::vector<Value> args;
   args.push_back(content);
   args.insert(args.end(), c->args().begin(), c->args().end());
-  c->engine()->applyConversions(args, data->conversions);
-  c->engine()->invoke(data->target, args);
+  Conversion::apply(data->conversions, args);
+  data->target.invoke(args);
   script::Value result = c->engine()->construct(c->callee().returnType(), {});
   script::get<ValuePtr>(result) = content.impl();
   return result;
@@ -294,29 +260,64 @@ static script::Value make_ref_template(script::FunctionCall *c)
 
 } // namespace callbacks
 
-std::pair<script::NativeFunctionSignature, std::shared_ptr<script::UserData>> make_ref_instantitate(script::FunctionTemplate make_ref, script::Function instance)
+class MakeTemplate : public script::FunctionTemplateNativeBackend
 {
-  using namespace script;
+  void deduce(script::TemplateArgumentDeduction& deduc, const std::vector<script::TemplateArgument>& targs, const std::vector<script::Type>& itypes) override
+  {
+    using namespace script;
 
-  auto data = std::make_shared<MakeRefTemplateData>();
+    if (targs.size() != 0)
+      return deduc.fail();
 
-  Class ref_type = make_ref.engine()->getClass(instance.returnType());
-  Class target_type = make_ref.engine()->getClass(ref_type.arguments().front().type);
+    std::vector<TemplateArgument> args;
+    for (const auto& t : itypes)
+    {
+      if (t.isConst())
+        args.push_back(TemplateArgument{ Type::cref(t.baseType()) });
+      else
+        args.push_back(TemplateArgument{ Type::ref(t.baseType()) });
+    }
 
-  std::vector<Type> types = instance.prototype().parameters();
-  types.insert(types.begin(), Type::ref(target_type.id()));
+    deduc.record_deduction(0, TemplateArgument{ std::move(args) });
+  }
 
-  OverloadResolution resol = OverloadResolution::New(make_ref.engine());
-  if (!resol.process(target_type.constructors(), types))
-    throw TemplateInstantiationError{ "Ref<T>::make() : Could not find valid constructor" };
+  void substitute(script::FunctionBuilder & builder, const std::vector<script::TemplateArgument> & targs) override
+  {
+    using namespace script;
 
-  data->target = resol.selectedOverload();
-  for (const auto init : resol.initializations())
-    data->conversions.push_back(init.conversion());
-  data->types = data->target.prototype().parameters();
+    builder.returns(builder.proto_.at(0).baseType());
+    builder.setStatic();
 
-  return { callbacks::make_ref_template, data };
-}
+    for (const auto& p : targs.back().pack->args())
+    {
+      builder.addParam(p.type);
+    }
+  }
+
+  std::pair<script::NativeFunctionSignature, std::shared_ptr<script::UserData>> instantiate(script::Function & function) override
+  {
+    using namespace script;
+
+    auto data = std::make_shared<MakeRefTemplateData>();
+
+    Class ref_type = functionTemplate().engine()->typeSystem()->getClass(function.returnType());
+    Class target_type = functionTemplate().engine()->typeSystem()->getClass(ref_type.arguments().front().type);
+
+    std::vector<Type> types = function.prototype().parameters();
+    types.insert(types.begin(), Type::ref(target_type.id()));
+
+    OverloadResolution resol = OverloadResolution::New(functionTemplate().engine());
+    if (!resol.process(target_type.constructors(), types))
+      throw TemplateInstantiationError{ "Ref<T>::make() : Could not find valid constructor" };
+
+    data->target = resol.selectedOverload();
+    for (const auto init : resol.initializations())
+      data->conversions.push_back(init.conversion());
+    data->types = data->target.prototype().parameters();
+
+    return { callbacks::make_ref_template, data };
+  }
+};
 
 void register_make_ref_template(script::Class ref_instance)
 {
@@ -325,28 +326,8 @@ void register_make_ref_template(script::Class ref_instance)
   Symbol{ ref_instance }.newFunctionTemplate("make")
     .params(TemplateParameter{ TemplateParameter::TypeParameter{}, TemplateParameter::ParameterPack{}, "Args" })
     .setScope(Scope{ ref_instance })
-    .deduce(make_ref_deduce)
-    .substitute(make_ref_substitute)
-    .instantiate(make_ref_instantitate)
+    .withBackend<MakeTemplate>()
     .create();
-}
-
-
-
-void is_template_deduce(script::TemplateArgumentDeduction &deduc, const script::FunctionTemplate & is_template, const std::vector<script::TemplateArgument> & targs, const std::vector<script::Type> & itypes)
-{
-  using namespace script;
-
-  if (targs.size() != 1)
-    return deduc.fail();
-}
-
-void is_template_substitute(script::FunctionBuilder & builder, script::FunctionTemplate is_template, const std::vector<script::TemplateArgument> & targs)
-{
-  using namespace script;
-
-  builder.returns(Type::Boolean);
-  builder.setConst();
 }
 
 namespace callbacks
@@ -364,18 +345,37 @@ static script::Value is_template(script::FunctionCall *c)
     return c->engine()->newBool(c->callee().arguments().front().type == val.type());
   }
   
-  Class cla = c->engine()->getClass(val.type());
-  Class T = c->engine()->getClass(c->callee().arguments().front().type);
+  Class cla = c->engine()->typeSystem()->getClass(val.type());
+  Class T = c->engine()->typeSystem()->getClass(c->callee().arguments().front().type);
   return c->engine()->newBool(cla.inherits(T));
 }
 
 } // namespace callbacks
 
-std::pair<script::NativeFunctionSignature, std::shared_ptr<script::UserData>> is_template_instantitate(script::FunctionTemplate is_template, script::Function instance)
+class IsTemplate : public script::FunctionTemplateNativeBackend
 {
-  using namespace script;
-  return { callbacks::is_template, nullptr };
-}
+  void deduce(script::TemplateArgumentDeduction& deduction, const std::vector<script::TemplateArgument>& targs, const std::vector<script::Type>& itypes) override
+  {
+    using namespace script;
+
+    if (targs.size() != 1)
+      return deduction.fail();
+  }
+
+  void substitute(script::FunctionBuilder & builder, const std::vector<script::TemplateArgument> & targs) override
+  {
+    using namespace script;
+
+    builder.returns(Type::Boolean);
+    builder.setConst();
+  }
+
+  std::pair<script::NativeFunctionSignature, std::shared_ptr<script::UserData>> instantiate(script::Function & function) override
+  {
+    using namespace script;
+    return { callbacks::is_template, nullptr };
+  }
+};
 
 void register_is_template(script::Class ref_instance)
 {
@@ -384,30 +384,8 @@ void register_is_template(script::Class ref_instance)
   Symbol{ ref_instance }.newFunctionTemplate("is")
     .params(TemplateParameter{ TemplateParameter::TypeParameter{}, "T" })
     .setScope(Scope{ ref_instance })
-    .deduce(is_template_deduce)
-    .substitute(is_template_substitute)
-    .instantiate(is_template_instantitate)
+    .withBackend<IsTemplate>()
     .create();
-}
-
-
-
-void as_template_deduce(script::TemplateArgumentDeduction &deduc, const script::FunctionTemplate & as_template, const std::vector<script::TemplateArgument> & targs, const std::vector<script::Type> & itypes)
-{
-  using namespace script;
-
-  if (targs.size() != 1)
-    return deduc.fail();
-}
-
-void as_template_substitute(script::FunctionBuilder & builder, script::FunctionTemplate as_template, const std::vector<script::TemplateArgument> & targs)
-{
-  using namespace script;
-
-  ClassTemplate ref_template = as_template.engine()->getTemplate(Engine::RefTemplate);
-  Class ref_instance = ref_template.getInstance(targs);
-  builder.returns(ref_instance.id());
-  builder.setConst();
 }
 
 namespace callbacks
@@ -422,8 +400,8 @@ static script::Value as_template(script::FunctionCall *c)
     return c->engine()->construct(c->callee().returnType(), {});
   }
 
-  Class cla = c->engine()->getClass(val.type());
-  Class T = c->engine()->getClass(c->callee().arguments().front().type);
+  Class cla = c->engine()->typeSystem()->getClass(val.type());
+  Class T = c->engine()->typeSystem()->getClass(c->callee().arguments().front().type);
   if (!cla.inherits(T))
   {
     return c->engine()->construct(c->callee().returnType(), {});
@@ -436,11 +414,32 @@ static script::Value as_template(script::FunctionCall *c)
 
 } // namespace callbacks
 
-std::pair<script::NativeFunctionSignature, std::shared_ptr<script::UserData>> as_template_instantitate(script::FunctionTemplate is_ref, script::Function instance)
+class AsTemplate : public script::FunctionTemplateNativeBackend
 {
-  using namespace script;
-  return { callbacks::as_template, nullptr };
-}
+  void deduce(script::TemplateArgumentDeduction& deduc, const std::vector<script::TemplateArgument>& targs, const std::vector<script::Type>& itypes) override
+  {
+    using namespace script;
+
+    if (targs.size() != 1)
+      return deduc.fail();
+  }
+
+  void substitute(script::FunctionBuilder& builder, const std::vector<script::TemplateArgument>& targs) override
+  {
+    using namespace script;
+
+    auto ref_template = ClassTemplate::get<RefTemplate>(builder.engine);
+    Class ref_instance = ref_template.getInstance(targs);
+    builder.returns(ref_instance.id());
+    builder.setConst();
+  }
+
+  std::pair<script::NativeFunctionSignature, std::shared_ptr<script::UserData>> instantiate(script::Function& function) override
+  {
+    using namespace script;
+    return { callbacks::as_template, nullptr };
+  }
+};
 
 void register_as_template(script::Class ref_instance)
 {
@@ -449,9 +448,7 @@ void register_as_template(script::Class ref_instance)
   Symbol{ ref_instance }.newFunctionTemplate("as")
     .params(TemplateParameter{ TemplateParameter::TypeParameter{}, "T" })
     .setScope(Scope{ ref_instance })
-    .deduce(as_template_deduce)
-    .substitute(as_template_substitute)
-    .instantiate(as_template_instantitate)
+    .withBackend<AsTemplate>()
     .create();
 }
 
@@ -507,8 +504,7 @@ static void fill_ref_instance(script::Class & instance, const script::Class & cl
   inject_conversions_recursively(instance, cla);
 }
 
-
-script::Class ref_template(script::ClassTemplateInstanceBuilder & builder)
+script::Class RefTemplate::instantiate(script::ClassTemplateInstanceBuilder& builder)
 {
   /// TODO: should we throw on failure
 
@@ -521,9 +517,9 @@ script::Class ref_template(script::ClassTemplateInstanceBuilder & builder)
   if (!T.isObjectType() || T.isReference() || T.isRefRef())
     return Class{};
 
-  Engine *e = builder.getTemplate().engine();
+  Engine * e = builder.getTemplate().engine();
 
-  Class cla = e->getClass(T);
+  Class cla = e->typeSystem()->getClass(T);
 
   Class result = builder.get();
 
@@ -539,11 +535,9 @@ void register_ref_template(script::Namespace ns)
   ClassTemplate ref = Symbol{ ns }.newClassTemplate("Ref")
     .params(TemplateParameter{ TemplateParameter::TypeParameter{}, "T" })
     .setScope(Scope{ ns })
-    .setCallback(ref_template)
+    .withBackend<RefTemplate>()
     .get();
-  
-  ns.engine()->implementation()->templates.ref_template = ref;
-}
+  }
 
 
 } // namespace dex

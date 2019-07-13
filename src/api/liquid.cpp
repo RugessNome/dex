@@ -15,8 +15,11 @@
 #include <script/enum.h>
 #include <script/enumbuilder.h>
 #include <script/functionbuilder.h>
+#include <script/locals.h>
 #include <script/namespace.h>
 #include <script/object.h>
+#include <script/typesystem.h>
+
 #include <script/interpreter/executioncontext.h>
 
 namespace script
@@ -142,7 +145,7 @@ void LiquidRenderer::init(const script::Value& s)
 {
   m_self = s;
 
-  script::Class c = s.engine()->getClass(s.type());
+  script::Class c = s.engine()->typeSystem()->getClass(s.type());
 
   for (script::Function f : c.memberFunctions())
   {
@@ -168,25 +171,22 @@ json::Json LiquidRenderer::applyFilter(const QString& name, const json::Json& ob
   script::Function filter = it->second;
   script::Engine* engine = filter.engine();
 
-  std::vector<script::Value> engine_args;
+  script::Locals engine_args;
 
   if (!filter.isStatic())
   {
-    engine_args.push_back(m_self);
+    engine_args.push(m_self);
   }
   
-  script::Value arg_val = dex::serialization::deserialize(object, script::Type::Auto);
-  engine->manage(arg_val);
-  engine_args.push_back(arg_val);
+
+  engine_args.push(dex::serialization::deserialize(object, script::Type::Auto));
 
   for (const auto& a : args)
   {
-    script::Value arg_val = dex::serialization::deserialize(a, script::Type::Auto);
-    engine->manage(arg_val);
-    engine_args.push_back(arg_val);
+    engine_args.push(dex::serialization::deserialize(a, script::Type::Auto));
   }
 
-  script::Value result = engine->call(filter, engine_args);
+  script::Value result = filter.call(engine_args);
   json::Json json_result = dex::serialization::serialize(result);
   engine->destroy(result);
 

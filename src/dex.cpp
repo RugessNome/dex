@@ -24,6 +24,7 @@
 #include <script/module.h>
 #include <script/interpreter/executioncontext.h>
 #include <script/script.h>
+#include <script/typesystem.h>
 
 #include <QDir>
 #include <QDirIterator>
@@ -80,9 +81,6 @@ Application::Application(int & argc, char **argv)
   : QApplication(argc, argv)
 {
   mEngine.setup();
-
-  //mEngine.reserveTypeRange(script::Type::FirstEnumType, script::Type::LastEnumType);
-  mEngine.reserveTypeRange(script::Type::FirstClassType, script::Type::LastClassType);
 
   script::Namespace ns = mEngine.rootNamespace();
 
@@ -484,7 +482,7 @@ void Application::load_outputs()
   {
     for (const script::Class& c : s.classes())
     {
-      if (c.inherits(scriptEngine()->getClass(script::Type::DexOutput)))
+      if (c.inherits(scriptEngine()->typeSystem()->getClass(script::Type::DexOutput)))
       {
         script::Value impl = scriptEngine()->construct(c.id(), {});
         mOutputs.push_back(std::unique_ptr<dex::Output>(new dex::Output(impl)));

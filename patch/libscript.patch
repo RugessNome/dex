@@ -1,34 +1,3 @@
-diff --git a/include/script/engine.h b/include/script/engine.h
-index 8c33f7d..f21af15 100644
---- a/include/script/engine.h
-+++ b/include/script/engine.h
-@@ -203,6 +203,13 @@ public:
-   ClassTemplate getTemplate(initializer_list_template_t) const;
-   bool isInitializerListType(const Type & t) const;
- 
-+  struct ref_template_t {};
-+  static const ref_template_t RefTemplate;
-+  ClassTemplate getTemplate(ref_template_t) const;
-+
-+  struct list_template_t {};
-+  static const list_template_t ListTemplate;
-+  ClassTemplate getTemplate(list_template_t) const;
- 
-   const std::vector<Script> & scripts() const;
- 
-diff --git a/include/script/private/engine_p.h b/include/script/private/engine_p.h
-index 8ba8c5b..825083e 100644
---- a/include/script/private/engine_p.h
-+++ b/include/script/private/engine_p.h
-@@ -59,6 +59,8 @@ public:
-   {
-     ClassTemplate array;
-     ClassTemplate initializer_list;
-+    ClassTemplate list_template;
-+    ClassTemplate ref_template;
-   }templates;
- 
- public:
 diff --git a/include/script/string.h b/include/script/string.h
 index b19bed4..4466491 100644
 --- a/include/script/string.h
@@ -63,15 +32,14 @@ index b19bed4..4466491 100644
    /*!
     * \fn static std::string class_name()
 diff --git a/include/script/types.h b/include/script/types.h
-index be6880f..b2c5522 100644
+index 51142db..c80c2a5 100644
 --- a/include/script/types.h
 +++ b/include/script/types.h
-@@ -56,6 +56,26 @@ public:
-     String = ObjectFlag | 1,
-     InitializerList = 8,
+@@ -57,6 +57,24 @@ public:
      Auto = 9,
-+    FirstClassType = String + 10,
-+    NullType = FirstClassType,
+     FirstClassType = ObjectFlag | 1,
+     String = FirstClassType,
++    NullType,
 +    QChar,
 +    CharRef,
 +    DexOptions,
@@ -89,35 +57,9 @@ index be6880f..b2c5522 100644
 +    DexEOL,
 +    DexLiquidRenderer,
 +    LiquidTemplate,
-+    LastClassType,
-   };
- 
-   inline bool isNull() const { return d == 0; }
-diff --git a/src/engine.cpp b/src/engine.cpp
-index 59f66fc..444e689 100644
---- a/src/engine.cpp
-+++ b/src/engine.cpp
-@@ -1458,6 +1458,20 @@ bool Engine::isInitializerListType(const Type & t) const
-   return getClass(t).isTemplateInstance() && getClass(t).instanceOf() == getTemplate(InitializerListTemplate);
- }
- 
-+const Engine::ref_template_t Engine::RefTemplate = Engine::ref_template_t{};
-+
-+ClassTemplate Engine::getTemplate(ref_template_t) const
-+{
-+  return d->templates.ref_template;
-+}
-+
-+const Engine::list_template_t Engine::ListTemplate = Engine::list_template_t{};
-+
-+ClassTemplate Engine::getTemplate(list_template_t) const
-+{
-+  return d->templates.list_template;
-+}
-+
- /*!
-  * \fn const std::vector<Script> & scripts() const
-  * \brief Returns all list of all existing scripts.
+     LastClassType,
+     FirstEnumType = EnumFlag | 1,
+     LastEnumType,
 diff --git a/src/string.cpp b/src/string.cpp
 index a5f515d..f19a283 100644
 --- a/src/string.cpp

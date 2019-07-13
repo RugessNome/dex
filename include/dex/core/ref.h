@@ -5,6 +5,7 @@
 #ifndef DEX_REF_H
 #define DEX_REF_H
 
+#include <script/classtemplatenativebackend.h>
 #include <script/namespace.h>
 #include <script/value.h>
 
@@ -34,6 +35,12 @@ bool operator==(const ValuePtr& lhs, const ValuePtr& rhs);
 inline bool operator!=(const ValuePtr& lhs, const ValuePtr& rhs) { return !(lhs == rhs); }
 
 void register_ref_template(script::Namespace ns);
+
+
+class RefTemplate : public script::ClassTemplateNativeBackend
+{
+  script::Class instantiate(script::ClassTemplateInstanceBuilder& builder) override;
+};
 
 } // namespace dex
 

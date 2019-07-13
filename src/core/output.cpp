@@ -14,6 +14,8 @@
 #include <script/constructorbuilder.h>
 #include <script/destructorbuilder.h>
 #include <script/functionbuilder.h>
+#include <script/locals.h>
+#include <script/typesystem.h>
 #include <script/interpreter/executioncontext.h>
 
 namespace script
@@ -81,7 +83,7 @@ Output* Output::staticCurrentOutput = nullptr;
 Output::Output(const script::Value& impl)
   : m_self(impl)
 {
-  script::Class c = m_self.engine()->getClass(m_self.type());
+  script::Class c = m_self.engine()->typeSystem()->getClass(m_self.type());
 
 
   for (const script::Function& f : c.memberFunctions())
@@ -120,7 +122,7 @@ Output::~Output()
 
 QString Output::name() const
 {
-  script::Class c = m_self.engine()->getClass(m_self.type());
+  script::Class c = m_self.engine()->typeSystem()->getClass(m_self.type());
   return QString::fromStdString(c.name()).toLower();
 }
 
@@ -194,16 +196,16 @@ QString Output::stringify(const script::Value& val)
 
   const script::Function to_string = it->second;
 
-  std::vector<script::Value> args;
+  script::Locals args;
 
   if (!to_string.isStatic())
   {
-    args.push_back(m_self);
+    args.push(m_self);
   }
 
-  args.push_back(val);
+  args.push(val);
 
-  script::Value ret = to_string.engine()->call(to_string, args);
+  script::Value ret = to_string.call(args);
   QString result = ret.toString();
   to_string.engine()->destroy(ret);
   return result;
@@ -229,13 +231,12 @@ void Output::write(const QString& outdir)
 {
   script::Engine* e = m_self.engine();
 
-  std::vector<script::Value> args;
-  args.push_back(m_self);
-  args.push_back(e->newString(outdir));
+  script::Locals args;
 
-  e->manage(args.back());
+  args.push(m_self);
+  args.push(e->newString(outdir));
 
-  e->call(m_write, args);
+  m_write.call(args);
 }
 
 Output* Output::current()

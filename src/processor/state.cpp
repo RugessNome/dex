@@ -6,6 +6,8 @@
 
 #include <script/class.h>
 #include <script/engine.h>
+#include <script/locals.h>
+#include <script/typesystem.h>
 
 #include <QDebug>
 
@@ -25,7 +27,7 @@ State State::create(script::Engine *e)
 {
   State ret{ e->construct(type_info().type, {}) };
 
-  script::Class state_class = e->getClass(type_info().type);
+  script::Class state_class = e->typeSystem()->getClass(type_info().type);
 
   for (const auto & f : state_class.memberFunctions())
   {
@@ -56,41 +58,45 @@ State State::create(script::Engine *e)
 void State::init()
 {
   script::Engine *e = engine();
-  e->call(mInit, { mValue });
+  mInit.invoke({ mValue });
 }
 
 void State::beginFile(const QString & path)
 {
   script::Engine *e = engine();
-  script::Value arg = e->newString(path);
-  e->call(mBeginFile, { mValue, arg });
-  e->destroy(arg);
+
+  script::Locals args;
+  args.push(mValue);
+  args.push(e->newString(path));
+
+  mBeginFile.call(args);
 }
 
 void State::endFile()
 {
-  script::Engine *e = engine();
-  e->call(mEndFile, {mValue});
+  mEndFile.invoke({ mValue });
 }
 
 void State::beginBlock()
 {
-  script::Engine *e = engine();
-  e->call(mBeginBlock, { mValue });
+  mBeginBlock.invoke({ mValue });
 }
 
 void State::endBlock()
 {
-  script::Engine *e = engine();
-  e->call(mEndBlock, { mValue });
+  mEndBlock.invoke({ mValue });
 }
 
 void State::dispatch(const json::Json& node)
 {
   script::Engine *e = engine();
-  script::Value arg = e->construct<json::Json>(node);
-  e->manage(arg);
-  e->call(mDispatch, { mValue, arg });
+
+  script::Locals args;
+
+  args.push(mValue);
+  args.push(e->construct<json::Json>(node));
+
+  mDispatch.call(args);
 }
 
 void State::destroy()

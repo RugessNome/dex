@@ -8,6 +8,7 @@
 #include "dex/processor/command.h"
 
 #include <script/engine.h>
+#include <script/locals.h>
 #include <script/namespace.h>
 #include <script/value.h>
 
@@ -78,15 +79,15 @@ void UserEnvironment::enter(const Options& opts)
 {
   script::Engine *e = mEnterFunction.engine();
 
-  script::Value arg = e->construct<Options>(opts);
-  e->call(mEnterFunction, { arg });
-  e->destroy(arg);
+  script::Locals args;
+  args.push(e->construct<Options>(opts));
+
+  mEnterFunction.call(args);
 }
 
 void UserEnvironment::leave()
 {
-  script::Engine *e = mLeaveFunction.engine();
-  e->call(mLeaveFunction, {});
+  mLeaveFunction.invoke({});
 }
 
 } // namespace dex

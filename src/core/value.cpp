@@ -13,6 +13,7 @@
 #include <script/function.h>
 #include <script/namelookup.h>
 #include <script/overloadresolution.h>
+#include <script/typesystem.h>
 
 namespace dex
 {
@@ -31,7 +32,7 @@ std::shared_ptr<ValueTypeInfo> ValueTypeInfo::get(const script::Type & t, script
   auto result = std::make_shared<ValueTypeInfo>();
   result->element_type = t;
 
-  const script::Scope scp = t.isObjectType() ? script::Scope{ e->getClass(t) } : script::Scope{ e->rootNamespace() };
+  const script::Scope scp = t.isObjectType() ? script::Scope{ e->typeSystem()->getClass(t) } : script::Scope{ e->rootNamespace() };
 
   script::NameLookup lookup = script::NameLookup::resolve(script::AssignmentOperator, scp);
   script::OverloadResolution resol = script::OverloadResolution::New(e);
@@ -110,8 +111,8 @@ bool Value::isRef() const
   if (isNull() || !impl().type().isObjectType())
     return false;
 
-  script::Class cla = engine()->getClass(impl().type());
-  return cla.isTemplateInstance() && cla.instanceOf() == engine()->getTemplate(script::Engine::RefTemplate);
+  script::Class cla = engine()->typeSystem()->getClass(impl().type());
+  return cla.isTemplateInstance() && cla.instanceOf() == script::ClassTemplate::get<dex::RefTemplate>(engine());
 }
 
 script::Value Value::getRef() const
@@ -124,8 +125,8 @@ bool Value::isList() const
   if (isNull() || !impl().type().isObjectType())
     return false;
 
-  script::Class cla = engine()->getClass(impl().type());
-  return cla.isTemplateInstance() && cla.instanceOf() == engine()->getTemplate(script::Engine::ListTemplate);
+  script::Class cla = engine()->typeSystem()->getClass(impl().type());
+  return cla.isTemplateInstance() && cla.instanceOf() ==  script::ClassTemplate::get<dex::ListTemplate>(engine());
 }
 
 QList<dex::Value> Value::getList() const
@@ -169,7 +170,7 @@ bool Value::operator==(const Value & other) const
   if (other.isNull() != isNull())
     return false;
 
-  auto ret = engine()->invoke(typeinfo->eq, { value, other.value });
+  auto ret = typeinfo->eq.invoke({ value, other.value });
   bool result = ret.toBool();
   engine()->destroy(ret);
   return result;

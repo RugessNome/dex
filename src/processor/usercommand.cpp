@@ -10,8 +10,10 @@
 
 #include <script/class.h>
 #include <script/engine.h>
+#include <script/locals.h>
 #include <script/operator.h>
 #include <script/prototypes.h>
+#include <script/typesystem.h>
 
 #include <QDebug>
 
@@ -112,41 +114,38 @@ json::Json UserCommand::invoke(DocumentProcessor*, const Options& opts, const QL
 
   script::Engine *e = mFunction.engine();
 
-  std::vector<script::Value> values;
+  script::Locals values;
 
   int proto_offset = 0;
 
   if (!mObject.isNull())
   {
     ++proto_offset;
-    values.push_back(mObject);
+    values.push(mObject);
   }
 
   if (acceptsOptions())
   {
-    values.push_back(e->construct<Options>(opts));
+    values.push(e->construct<Options>(opts));
     ++proto_offset;
   }
 
   int span_offset = (span() != CommandSpan::NotApplicable) ? 1 : 0;
 
   for (size_t i(proto_offset); i < mFunction.prototype().size() - span_offset; ++i)
-    values.push_back(dex::serialization::deserialize(arguments.at(i - proto_offset), mFunction.parameter(i)));
+    values.push(dex::serialization::deserialize(arguments.at(i - proto_offset), mFunction.parameter(i)));
 
   auto command_span = span();
   if (command_span != CommandSpan::NotApplicable)
-    values.push_back(CommandSpan::expose(command_span, e));
+    values.push(CommandSpan::expose(command_span, e));
 
-  script::Value val = e->call(mFunction, values);
+  script::Value val = mFunction.call(values);
   json::Json result = nullptr;
 
   if (val != script::Value::Void)
   {
     result = dex::serialization::serialize(val);
   }
-
-  for (const auto & v : values)
-    e->destroy(v);
 
   e->destroy(val);
 
@@ -199,7 +198,7 @@ QSharedPointer<UserCommand> UserCommand::create(const script::Class & cla)
 {
   script::Engine *e = cla.engine();
 
-  if (!cla.inherits(e->getClass(Command::type_info().type)))
+  if (!cla.inherits(e->typeSystem()->getClass(Command::type_info().type)))
     return nullptr;
 
   if (!cla.isDefaultConstructible())
@@ -245,7 +244,7 @@ QSharedPointer<UserCommand> UserCommand::create(const script::Class & cla)
   }
 
   script::Value obj = e->construct(cla.id(), {});
-  script::Value command_name_value = e->invoke(name, { obj });
+  script::Value command_name_value = name.invoke({ obj });
   QString command_name = command_name_value.toString();
   e->destroy(command_name_value);
 

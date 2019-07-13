@@ -5,6 +5,7 @@
 #ifndef DEX_LIST_H
 #define DEX_LIST_H
 
+#include <script/classtemplatenativebackend.h>
 #include <script/namespace.h>
 
 #include <QList>
@@ -16,6 +17,12 @@ class Value;
 
 void register_list_template(script::Namespace ns);
 QList<dex::Value> & list_cast(const script::Value & val);
+
+
+class ListTemplate : public script::ClassTemplateNativeBackend
+{
+  script::Class instantiate(script::ClassTemplateInstanceBuilder& builder) override;
+};
 
 } // namespace dex
 

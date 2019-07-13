@@ -23,6 +23,7 @@
 #include <script/symbol.h>
 #include <script/templateargumentdeduction.h>
 #include <script/templatebuilder.h>
+#include <script/typesystem.h>
 
 namespace script
 {
@@ -52,55 +53,64 @@ static script::Value candecode(script::FunctionCall* c)
 
 } // serialization_callbacks
 
-static void encode_template_deduce(script::TemplateArgumentDeduction & deduc, const script::FunctionTemplate & encode_template, const std::vector<script::TemplateArgument> & targs, const std::vector<script::Type> & itypes)
+class EncodeTemplate : public script::FunctionTemplateNativeBackend
 {
-  deduc.record_deduction(0, TemplateArgument(itypes.front()));
-}
+  void deduce(script::TemplateArgumentDeduction& deduc, const std::vector<script::TemplateArgument>& targs, const std::vector<script::Type>& itypes) override
+  {
+    deduc.record_deduction(0, TemplateArgument(itypes.front()));
+  }
 
-static void encode_template_substitute(script::FunctionBuilder & builder, script::FunctionTemplate encode_template, const std::vector<script::TemplateArgument> & targs)
-{
-  builder.returns(script::Type::Json);
-  builder.params(script::Type::cref(targs.front().type));
-}
+  void substitute(script::FunctionBuilder& builder, const std::vector<script::TemplateArgument>& targs) override
+  {
+    builder.returns(script::Type::Json);
+    builder.params(script::Type::cref(targs.front().type));
+  }
 
-static std::pair<script::NativeFunctionSignature, std::shared_ptr<script::UserData>> encode_template_instantitate(script::FunctionTemplate encode_template, script::Function instance)
-{
-  return { serialization_callbacks::encode, nullptr };
-}
+  std::pair<script::NativeFunctionSignature, std::shared_ptr<script::UserData>> instantiate(script::Function& function) override
+  {
+    return { serialization_callbacks::encode, nullptr };
+  }
+};
 
-static void decode_template_deduce(script::TemplateArgumentDeduction& deduc, const script::FunctionTemplate& decode_template, const std::vector<script::TemplateArgument>& targs, const std::vector<script::Type>& itypes)
+class DecodeTemplate : public script::FunctionTemplateNativeBackend
 {
-  if (targs.size() != 1)
-    return deduc.fail();
-}
+  void deduce(script::TemplateArgumentDeduction& deduc, const std::vector<script::TemplateArgument>& targs, const std::vector<script::Type>& itypes) override
+  {
+    if (targs.size() != 1)
+      return deduc.fail();
+  }
 
-static void decode_template_substitute(script::FunctionBuilder & builder, script::FunctionTemplate decode_template, const std::vector<script::TemplateArgument> & targs)
-{
-  builder.returns(targs.front().type);
-  builder.params(script::make_type<const json::Json&>());
-}
+  void substitute(script::FunctionBuilder& builder, const std::vector<script::TemplateArgument>& targs) override
+  {
+    builder.returns(targs.front().type);
+    builder.params(script::make_type<const json::Json&>());
+  }
 
-static std::pair<script::NativeFunctionSignature, std::shared_ptr<script::UserData>> decode_template_instantitate(script::FunctionTemplate decode_template, script::Function instance)
-{
-  return { serialization_callbacks::decode, nullptr };
-}
+  std::pair<script::NativeFunctionSignature, std::shared_ptr<script::UserData>> instantiate(script::Function& function) override
+  {
+    return { serialization_callbacks::decode, nullptr };
+  }
+};
 
-static void candecode_template_deduce(script::TemplateArgumentDeduction& deduc, const script::FunctionTemplate& decode_template, const std::vector<script::TemplateArgument>& targs, const std::vector<script::Type>& itypes)
+class CanDecodeTemplate : public script::FunctionTemplateNativeBackend
 {
-  if (targs.size() != 1)
-    return deduc.fail();
-}
+  void deduce(script::TemplateArgumentDeduction& deduc, const std::vector<script::TemplateArgument>& targs, const std::vector<script::Type>& itypes) override
+  {
+    if (targs.size() != 1)
+      return deduc.fail();
+  }
 
-static void candecode_template_substitute(script::FunctionBuilder & builder, script::FunctionTemplate decode_template, const std::vector<script::TemplateArgument> & targs)
-{
-  builder.returns(script::Type::Boolean);
-  builder.params(script::make_type<const json::Json&>());
-}
+  void substitute(script::FunctionBuilder & builder, const std::vector<script::TemplateArgument> & targs) override
+  {
+    builder.returns(script::Type::Boolean);
+    builder.params(script::make_type<const json::Json&>());
+  }
 
-static std::pair<script::NativeFunctionSignature, std::shared_ptr<script::UserData>> candecode_template_instantitate(script::FunctionTemplate decode_template, script::Function instance)
-{
-  return { serialization_callbacks::candecode, nullptr };
-}
+  std::pair<script::NativeFunctionSignature, std::shared_ptr<script::UserData>> instantiate(script::Function & function) override
+  {
+    return { serialization_callbacks::candecode, nullptr };
+  }
+};
 
 } // namespace script
 
@@ -159,9 +169,9 @@ json::Json serialize_object(const script::Value& val)
 {
 
   script::Engine* e = val.engine();
-  script::Class cla = e->getClass(val.type());
+  script::Class cla = e->typeSystem()->getClass(val.type());
 
-  if (cla.isTemplateInstance() && cla.instanceOf() == val.engine()->getTemplate(script::Engine::ListTemplate))
+  if (cla.isTemplateInstance() && cla.instanceOf() == script::ClassTemplate::get<dex::ListTemplate>(e))
   {
     return serialize_list(val);
   }
@@ -170,7 +180,7 @@ json::Json serialize_object(const script::Value& val)
 
   result["__type"] = cla.id();
 
-  if (cla.isTemplateInstance() && cla.instanceOf() == val.engine()->getTemplate(script::Engine::RefTemplate))
+  if (cla.isTemplateInstance() && cla.instanceOf() == script::ClassTemplate::get<dex::RefTemplate>(e))
   {
     serialize_ref(val, result);
   }
@@ -212,8 +222,7 @@ json::Json serialize(const script::Value& val)
 static bool perform_assignment(script::Value& lhs, const script::Value& rhs)
 {
   script::Engine* e = Dex::scriptEngine();
-  int opts = script::OperatorLookup::ConsiderCurrentScope | script::OperatorLookup::RemoveDuplicates;
-  auto lookup = script::NameLookup::resolve(script::AssignmentOperator, lhs.type(), rhs.type(), script::Scope(e->rootNamespace()), opts);
+  auto lookup = script::NameLookup::resolve(script::AssignmentOperator, lhs.type(), rhs.type(), script::Scope(e->rootNamespace()));
 
   auto resol = script::OverloadResolution::New(e);
 
@@ -223,7 +232,7 @@ static bool perform_assignment(script::Value& lhs, const script::Value& rhs)
     return false;
   }
 
-  e->invoke(resol.selectedOverload(), { lhs, rhs });
+  resol.selectedOverload().invoke({ lhs, rhs });
 
   return true;
 }
@@ -328,7 +337,7 @@ static script::Type commonType(const json::Json& data, const script::Type& T)
     return T;
   }
 
-  script::ClassTemplate ref = e->getTemplate(script::Engine::RefTemplate);
+  script::ClassTemplate ref =  script::ClassTemplate::get<dex::RefTemplate>(e);
   script::Type result;
 
   auto get_common_type = [&result, &ref, e](const script::Type & V, const script::Type & W) -> bool 
@@ -342,7 +351,7 @@ static script::Type commonType(const json::Json& data, const script::Type& T)
 
       if (W.isObjectType())
       {
-        script::Class Wcla = e->getClass(W);
+        script::Class Wcla = e->typeSystem()->getClass(W);
 
         if (Wcla.isTemplateInstance() && Wcla.instanceOf() == ref)
         {
@@ -364,7 +373,7 @@ static script::Type commonType(const json::Json& data, const script::Type& T)
       if (!W.isObjectType())
         return false;
 
-      script::Class Wcla = e->getClass(W);
+      script::Class Wcla = e->typeSystem()->getClass(W);
 
       if (!Wcla.isTemplateInstance() || Wcla.instanceOf() != ref)
         return false;
@@ -466,9 +475,9 @@ script::Value deserialize(const json::Json& json, script::Type type)
       type = script::Type(json["__type"].toInt());
     }
 
-    script::Class cla = e->getClass(type);
+    script::Class cla = e->typeSystem()->getClass(type);
 
-    if (cla.isTemplateInstance() && cla.instanceOf() == e->getTemplate(script::Engine::RefTemplate))
+    if (cla.isTemplateInstance() && cla.instanceOf() == script::ClassTemplate::get<dex::RefTemplate>(e))
     {
       return deserialize_ref(json, cla);
     }
@@ -484,9 +493,9 @@ script::Value deserialize(const json::Json& json, script::Type type)
       type = deduceListType(json.toArray());
     }
 
-    script::Class cla = e->getClass(type);
+    script::Class cla = e->typeSystem()->getClass(type);
 
-    if (cla.isTemplateInstance() && cla.instanceOf() == e->getTemplate(script::Engine::ListTemplate))
+    if (cla.isTemplateInstance() && cla.instanceOf() == script::ClassTemplate::get<dex::ListTemplate>(e))
     {
       return deserialize_list(json.toArray(), cla);
     }
@@ -495,28 +504,23 @@ script::Value deserialize(const json::Json& json, script::Type type)
   throw DeserializationError(json, type);
 }
 
+
 void expose(script::Namespace& ns)
 {
   script::Namespace s = ns.newNamespace("serialization");
 
   script::Symbol(s).newFunctionTemplate("encode")
-    .deduce(script::encode_template_deduce)
-    .substitute(script::encode_template_substitute)
-    .instantiate(script::encode_template_instantitate)
+    .withBackend<script::EncodeTemplate>()
     .params(script::TemplateParameter(script::TemplateParameter::TypeParameter(), "T"))
     .create();
 
   script::Symbol(s).newFunctionTemplate("decode")
-    .deduce(script::decode_template_deduce)
-    .substitute(script::decode_template_substitute)
-    .instantiate(script::decode_template_instantitate)
+    .withBackend<script::DecodeTemplate>()
     .params(script::TemplateParameter(script::TemplateParameter::TypeParameter(), "T"))
     .create();
 
   script::Symbol(s).newFunctionTemplate("canDecode")
-    .deduce(script::candecode_template_deduce)
-    .substitute(script::candecode_template_substitute)
-    .instantiate(script::candecode_template_instantitate)
+    .withBackend<script::CanDecodeTemplate>()
     .params(script::TemplateParameter(script::TemplateParameter::TypeParameter(), "T"))
     .create();
 }

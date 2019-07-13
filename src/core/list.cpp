@@ -493,7 +493,7 @@ static script::Value op_subscript(script::FunctionCall *c)
 
 } // namespace callbacks
 
-script::Class list_template_instantiate(script::ClassTemplateInstanceBuilder & builder)
+script::Class ListTemplate::instantiate(script::ClassTemplateInstanceBuilder& builder)
 {
   using namespace script;
 
@@ -790,10 +790,8 @@ void register_list_template(script::Namespace n)
   ClassTemplate list_template = Symbol{ n }.newClassTemplate("List")
     .setParams(std::move(params))
     .setScope(Scope{ n })
-    .setCallback(list_template_instantiate)
+    .withBackend<ListTemplate>()
     .get();
-
-  n.engine()->implementation()->templates.list_template = list_template;
 }
 
 } // namespace dex
