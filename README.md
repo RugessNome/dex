@@ -1,5 +1,14 @@
 
 
+---
+
+**Disclaimer:** this repository contains a proof-of-concept (POC)
+for a language-agnostic fully-scriptable documentation system.
+This POC is no longer maintained and is replaced by
+[dex](https://github.com/bandicode/dex).
+
+---
+
 # `Dex` - a language-agnostic documentation system
 
 > Wellll, whadya know !
